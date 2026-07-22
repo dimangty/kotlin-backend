@@ -1,5 +1,7 @@
 package study.week16
 
+import org.springframework.dao.DataIntegrityViolationException
+import org.springframework.dao.EmptyResultDataAccessException
 import org.springframework.http.HttpStatus
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Service
@@ -12,6 +14,7 @@ data class AccountView(val id: UUID, val ownerId: UUID, val currency: String, va
 data class CreateTransfer(val fromAccountId: UUID, val toAccountId: UUID, val amountMinor: Long)
 data class TransferView(val id: UUID, val status: String)
 data class LedgerEntryView(val id: Long, val transferId: UUID, val amountMinor: Long)
+data class ApiError(val code: String, val message: String)
 private data class StoredTransfer(
     val view: TransferView,
     val fromAccountId: UUID,
@@ -36,6 +39,8 @@ class FintechService(private val jdbc: JdbcTemplate) {
 
     @Transactional
     fun transfer(key: String, command: CreateTransfer, actor: String): TransferView {
+        require(key.isNotBlank() && key.length <= 128) { "invalid Idempotency-Key" }
+        require(actor.isNotBlank() && actor.length <= 128) { "invalid actor" }
         require(command.amountMinor > 0 && command.fromAccountId != command.toAccountId)
         existing(key, command)?.let { return it }
         val ids = listOf(command.fromAccountId, command.toAccountId).sorted()
@@ -96,9 +101,23 @@ class FintechService(private val jdbc: JdbcTemplate) {
         { rs, _ -> TransferView(rs.getObject("id", UUID::class.java), rs.getString("status")) }, id,
     )!!
 
-    fun ledger(accountId: UUID): List<LedgerEntryView> = jdbc.query(
-        "SELECT id,transfer_id,amount_minor FROM ledger_entries WHERE account_id=? ORDER BY id DESC LIMIT 100",
-        { rs, _ -> LedgerEntryView(rs.getLong("id"), rs.getObject("transfer_id", UUID::class.java), rs.getLong("amount_minor")) }, accountId)
+    fun ledger(accountId: UUID, cursor: Long?, limit: Int): List<LedgerEntryView> {
+        require(limit in 1..100) { "limit must be between 1 and 100" }
+        require(cursor == null || cursor > 0) { "cursor must be positive" }
+        return jdbc.query(
+            """
+            SELECT id,transfer_id,amount_minor
+            FROM ledger_entries
+            WHERE account_id=? AND id < ?
+            ORDER BY id DESC
+            LIMIT ?
+            """.trimIndent(),
+            { rs, _ -> LedgerEntryView(rs.getLong("id"), rs.getObject("transfer_id", UUID::class.java), rs.getLong("amount_minor")) },
+            accountId,
+            cursor ?: Long.MAX_VALUE,
+            limit,
+        )
+    }
 }
 
 @RestController
@@ -108,5 +127,25 @@ class FintechController(private val service: FintechService) {
     @PostMapping("/transfers") @ResponseStatus(HttpStatus.CREATED)
     fun transfer(@RequestHeader("Idempotency-Key") key: String, @RequestHeader("X-Actor") actor: String, @RequestBody body: CreateTransfer) = service.transfer(key, body, actor)
     @GetMapping("/transfers/{id}") fun transfer(@PathVariable id: UUID) = service.transfer(id)
-    @GetMapping("/accounts/{id}/ledger") fun ledger(@PathVariable id: UUID) = service.ledger(id)
+    @GetMapping("/accounts/{id}/ledger")
+    fun ledger(
+        @PathVariable id: UUID,
+        @RequestParam(required = false) cursor: Long?,
+        @RequestParam(defaultValue = "50") limit: Int,
+    ) = service.ledger(id, cursor, limit)
+}
+
+@RestControllerAdvice
+class FintechErrorHandler {
+    @ExceptionHandler(IllegalArgumentException::class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    fun invalid(error: IllegalArgumentException) = ApiError("INVALID_REQUEST", error.message ?: "invalid request")
+
+    @ExceptionHandler(EmptyResultDataAccessException::class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    fun missing() = ApiError("RESOURCE_NOT_FOUND", "resource not found")
+
+    @ExceptionHandler(IllegalStateException::class, DataIntegrityViolationException::class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    fun conflict() = ApiError("OPERATION_REJECTED", "operation violates a business invariant")
 }

@@ -84,6 +84,34 @@ class TransferServiceIntegrationTest @Autowired constructor(
         }
     }
 
+    @Test
+    fun `fifty opposing transfers preserve total balance`() {
+        val start = CountDownLatch(1)
+        val pool = Executors.newFixedThreadPool(10)
+        try {
+            val futures = (1..50).map { number ->
+                pool.submit<TransferResponse> {
+                    start.await()
+                    val request = if (number % 2 == 0) {
+                        TransferRequest(fromId, toId, 1)
+                    } else {
+                        TransferRequest(toId, fromId, 1)
+                    }
+                    service.transfer("parallel-$number", request)
+                }
+            }
+            start.countDown()
+            futures.forEach { it.get(30, TimeUnit.SECONDS) }
+
+            assertEquals(50, jdbc.queryForObject("SELECT count(*) FROM transfers", Int::class.java)!!)
+            assertEquals(100, jdbc.queryForObject("SELECT count(*) FROM ledger_entries", Int::class.java)!!)
+            assertEquals(2000, balance(fromId) + balance(toId))
+            assertEquals(0, jdbc.queryForObject("SELECT sum(amount_minor) FROM ledger_entries", Long::class.java)!!)
+        } finally {
+            pool.shutdownNow()
+        }
+    }
+
     private fun balance(id: UUID): Long =
         jdbc.queryForObject("SELECT balance_minor FROM accounts WHERE id = ?", Long::class.java, id)!!
 }

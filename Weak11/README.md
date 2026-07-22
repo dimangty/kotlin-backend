@@ -7,5 +7,4 @@
 ./gradlew run
 ```
 
-Задания: добавить exponential backoff+jitter только для transient errors, проверить cancellation, смоделировать timeout после успешного charge и заменить in-memory repository на outbox/state machine в PostgreSQL.
-
+Cancellation и параллельный повтор одного key покрыты тестами: отмена оставляет `RESERVED` для reconciliation, а один coordinator не допускает позднего `FAILED` поверх `COMPLETED`. Следующие задания: exponential backoff+jitter только для transient errors, timeout после успешного charge и PostgreSQL outbox/state machine.

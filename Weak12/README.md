@@ -8,5 +8,4 @@ curl -H 'X-Request-Id: incident-42' 'localhost:8080/work?millis=50'
 curl localhost:8080/actuator/prometheus
 ```
 
-Задания: добавить operationId, Hikari/transaction metrics, slow-query logging и incident checklist «lock wait vs bad plan». Не логировать Authorization, tokens, пароли и PII.
-
+Request ID и operation ID проходят через безопасно ограниченные headers, MDC и response; HTTP-тест также проверяет timer. Задания: добавить Hikari/transaction metrics, slow-query logging и incident checklist «lock wait vs bad plan». Не логировать Authorization, tokens, пароли и PII.

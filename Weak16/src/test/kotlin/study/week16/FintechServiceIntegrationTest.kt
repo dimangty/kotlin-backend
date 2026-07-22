@@ -92,5 +92,50 @@ class FintechServiceIntegrationTest @Autowired constructor(
         }
     }
 
+    @Test
+    fun `fifty parallel transfers preserve total balance and ledger invariant`() {
+        val start = CountDownLatch(1)
+        val pool = Executors.newFixedThreadPool(10)
+        try {
+            val futures = (1..50).map { number ->
+                pool.submit<TransferView> {
+                    start.await()
+                    val forward = number % 2 == 0
+                    val command = if (forward) {
+                        CreateTransfer(fromId, toId, 1)
+                    } else {
+                        CreateTransfer(toId, fromId, 1)
+                    }
+                    service.transfer("parallel-$number", command, "test-user")
+                }
+            }
+            start.countDown()
+            futures.forEach { it.get(30, TimeUnit.SECONDS) }
+
+            assertEquals(50, count("transfers"))
+            assertEquals(100, count("ledger_entries"))
+            assertEquals(50, count("audit_events"))
+            assertEquals(0L, jdbc.queryForObject("SELECT sum(amount_minor) FROM ledger_entries", Long::class.java)!!)
+            assertEquals(2000L, jdbc.queryForObject("SELECT sum(balance_minor) FROM accounts", Long::class.java)!!)
+        } finally {
+            pool.shutdownNow()
+        }
+    }
+
+    @Test
+    fun `ledger uses a stable descending cursor`() {
+        repeat(3) { number ->
+            service.transfer("cursor-$number", CreateTransfer(fromId, toId, 1), "test-user")
+        }
+
+        val firstPage = service.ledger(fromId, cursor = null, limit = 2)
+        val secondPage = service.ledger(fromId, cursor = firstPage.last().id, limit = 2)
+
+        assertEquals(2, firstPage.size)
+        assertEquals(1, secondPage.size)
+        assertEquals(3, (firstPage + secondPage).map { it.id }.distinct().size)
+        assertEquals((firstPage + secondPage).sortedByDescending { it.id }, firstPage + secondPage)
+    }
+
     private fun count(table: String): Int = jdbc.queryForObject("SELECT count(*) FROM $table", Int::class.java)!!
 }

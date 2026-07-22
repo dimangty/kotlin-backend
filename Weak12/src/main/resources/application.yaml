@@ -5,5 +5,4 @@ server:
   tomcat:
     connection-timeout: 2s
 logging:
-  pattern.console: "%d %-5level [%X{requestId:-no-request}] %logger - %msg%n"
-
+  pattern.console: "%d %-5level [request=%X{requestId:-none} operation=%X{operationId:-none}] %logger - %msg%n"

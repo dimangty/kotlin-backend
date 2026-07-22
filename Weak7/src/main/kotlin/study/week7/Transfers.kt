@@ -20,6 +20,7 @@ private data class StoredTransfer(
 class TransferService(private val jdbc: JdbcTemplate) {
     @Transactional
     fun transfer(key: String, request: TransferRequest): TransferResponse {
+        require(key.isNotBlank() && key.length <= 128) { "invalid Idempotency-Key" }
         require(request.amountMinor > 0) { "amountMinor must be positive" }
         require(request.fromAccountId != request.toAccountId) { "accounts must differ" }
 

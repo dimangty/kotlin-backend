@@ -7,6 +7,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.http.HttpStatus
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.http.SessionCreationPolicy
@@ -29,6 +30,9 @@ class SecurityConfig {
     fun chain(http: HttpSecurity, tokenFilter: AccessTokenFilter): SecurityFilterChain = http
         .csrf { it.disable() }
         .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
+        .exceptionHandling {
+            it.authenticationEntryPoint { _, response, _ -> response.sendError(HttpStatus.UNAUTHORIZED.value()) }
+        }
         .authorizeHttpRequests { it.requestMatchers("/auth/**", "/health").permitAll().anyRequest().authenticated() }
         .addFilterBefore(tokenFilter, BasicAuthenticationFilter::class.java)
         .build()
@@ -39,9 +43,9 @@ class AccessTokenFilter(private val auth: AuthService) : OncePerRequestFilter() 
     override fun doFilterInternal(request: HttpServletRequest, response: HttpServletResponse, chain: FilterChain) {
         val token = request.getHeader("Authorization")?.removePrefix("Bearer ")
         auth.userForAccess(token)?.let { userId ->
-            SecurityContextHolder.getContext().authentication = UsernamePasswordAuthenticationToken(userId, token, emptyList())
+            // После проверки bearer token больше не нужен как credentials в SecurityContext.
+            SecurityContextHolder.getContext().authentication = UsernamePasswordAuthenticationToken(userId, null, emptyList())
         }
         chain.doFilter(request, response)
     }
 }
-

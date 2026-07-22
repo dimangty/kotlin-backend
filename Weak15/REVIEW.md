@@ -1,5 +1,5 @@
 # Review
 
-Статус: Ktor+Hikari+PostgreSQL собираются; transfer валидирует положительную сумму, разные/существующие accounts и sufficient funds до изменения двух balances в одной transaction.
+Статус: Ktor+Hikari+PostgreSQL проходят Testcontainers. Flyway создаёт accounts/transfers/ledger; конкурентный retry возвращает один ID, создаёт один transfer и две zero-sum entries, общий balance сохраняется. Другой payload с тем же key отклоняется.
 
-Исправлены EngineMain/YAML/serialization и deprecated monitor API. До выполнения критериев недели нужно добавить ledger, idempotency, ownership, Flyway и Testcontainers concurrency tests.
+Исправлены отсутствовавшее сохранение transfer, idempotency, ledger, неиспользуемый Flyway и blocking JDBC на Netty event loop. До полного критерия недели остаются ownership/JWT и deadlock/serialization retry test.

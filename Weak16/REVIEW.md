@@ -1,5 +1,5 @@
 # Review
 
-Статус: конкурентный Testcontainers test проходит. Два одновременных retry дают один ID; transfers=1, ledger entries=2, ledger net=0, audit events=1, total balance=2000. Другой payload с тем же key отклоняется.
+Статус: четыре Testcontainers-теста проходят. Два одновременных retry дают один ID; 50 встречных переводов сохраняют total balance и zero-sum ledger; другой payload с тем же key отклоняется; descending cursor не даёт дублей. Добавлен стабильный HTTP error contract и bounded key/actor columns.
 
-Это сильный учебный baseline, но не production-ready: отсутствуют auth/ownership, error mapping, cursor pagination, bounded deadlock/serialization retry и 50-operation concurrency/rollback suite.
+Это сильный учебный baseline, но не production-ready: отсутствуют auth/ownership, bounded deadlock/serialization retry, injected rollback test и EXPLAIN-артефакты на миллионе entries.

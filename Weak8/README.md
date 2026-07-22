@@ -9,8 +9,7 @@ docker compose up -d
 
 ## Задания
 
-1. Добавить controller и integration tests.
+1. Добавить controller; data-layer integration test с PostgreSQL уже проверяет Flyway, JPA dirty checking и JDBC projection.
 2. Создать связь account -> payments, воспроизвести N+1 и исправить projection/fetch join.
 3. Спроектировать expand-contract миграцию обязательной колонки без долгой блокировки.
 4. Включить SQL logs и приложить `EXPLAIN (ANALYZE, BUFFERS)` для daily totals.
-

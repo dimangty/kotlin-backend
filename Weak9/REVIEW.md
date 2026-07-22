@@ -1,6 +1,5 @@
 # Review
 
-Статус: проект компилируется; filter chain, bcrypt, access/refresh rotation и ownership check разделены с бизнес-кодом.
+Статус: HTTP-тесты проходят; filter chain возвращает `401` без token и `403` для чужого account. Bcrypt, TTL access/refresh grants, одноразовая rotation и ownership check разделены с бизнес-кодом. Bearer token не сохраняется в `SecurityContext.credentials`.
 
-Критичное ограничение: users/tokens/accounts хранятся in-memory, token expiration и persistence отсутствуют. Проект годится только для лаборатории; перед зачётом нужны negative security tests и DB-backed hashed refresh tokens.
-
+Критичное ограничение: users/tokens/accounts хранятся in-memory, refresh token хранится открыто. Проект годится только для лаборатории; перед зачётом нужны DB-backed hashed refresh tokens, logout/revoke-all и audit events.

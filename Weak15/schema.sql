@@ -1,2 +1,2 @@
-CREATE TABLE accounts(id uuid PRIMARY KEY, balance_minor bigint NOT NULL CHECK(balance_minor >= 0));
-
+-- Flyway migration is canonical. This psql helper keeps the old manual entry point useful.
+\ir src/main/resources/db/migration/V1__schema.sql

@@ -11,6 +11,7 @@ import java.sql.DriverManager
 import java.sql.SQLException
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 @Testcontainers
 class PostgresInvariantTest {
@@ -37,16 +38,28 @@ class PostgresInvariantTest {
     fun `parallel atomic debits preserve non-negative balance`() {
         val start = CountDownLatch(1)
         val pool = Executors.newFixedThreadPool(20)
-        val futures = (1..20).map {
-            pool.submit<Boolean> {
-                start.await()
-                connection().use { c -> c.prepareStatement("UPDATE accounts SET balance=balance-100 WHERE id=1 AND balance>=100").use { it.executeUpdate() == 1 } }
+        try {
+            val futures = (1..20).map {
+                pool.submit<Boolean> {
+                    start.await()
+                    connection().use { c ->
+                        c.prepareStatement("UPDATE accounts SET balance=balance-100 WHERE id=1 AND balance>=100").use {
+                            it.executeUpdate() == 1
+                        }
+                    }
+                }
             }
+            start.countDown()
+            assertEquals(10, futures.count { it.get(15, TimeUnit.SECONDS) })
+            connection().use { c ->
+                c.createStatement().executeQuery("SELECT balance FROM accounts WHERE id=1").use {
+                    it.next()
+                    assertEquals(0, it.getLong(1))
+                }
+            }
+        } finally {
+            pool.shutdownNow()
         }
-        start.countDown()
-        assertEquals(10, futures.count { it.get() })
-        connection().use { c -> c.createStatement().executeQuery("SELECT balance FROM accounts WHERE id=1").use { it.next(); assertEquals(0, it.getLong(1)) } }
-        pool.shutdown()
     }
 
     private fun connection() = DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password)

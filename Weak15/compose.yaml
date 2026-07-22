@@ -8,4 +8,3 @@ services:
       interval: 2s
       timeout: 2s
       retries: 30
-    volumes: ["./schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro"]

@@ -10,9 +10,8 @@ docker compose up -d
 Перед production-style review дополните проект:
 
 1. Authentication/ownership из `Weak9` и единый error contract.
-2. Расширить текущие Testcontainers-тесты: 50 parallel transfers, rollback after injected failure и bounded retry.
+2. Добавить rollback after injected failure и bounded retry; 50 parallel transfers уже проверяются.
 3. EXPLAIN before/after на миллионе ledger entries.
-4. Cursor pagination вместо фиксированного LIMIT.
-5. Retry serialization/deadlock с bounded backoff и operation ID.
+4. Добавить operation ID к audit/logging и retry serialization/deadlock с bounded backoff. Ledger уже использует descending cursor pagination.
 
 Архитектурные решения и timeout timeline находятся в `docs/architecture.md`.

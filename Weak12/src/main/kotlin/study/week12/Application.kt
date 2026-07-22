@@ -20,18 +20,29 @@ class Application
 fun main(args: Array<String>) { runApplication<Application>(*args) }
 
 @Component
-class RequestContextFilter(private val registry: MeterRegistry) : OncePerRequestFilter() {
+class RequestCorrelationFilter(private val registry: MeterRegistry) : OncePerRequestFilter() {
     override fun doFilterInternal(request: HttpServletRequest, response: HttpServletResponse, chain: FilterChain) {
-        val requestId = request.getHeader("X-Request-Id") ?: UUID.randomUUID().toString()
+        val requestId = safeId(request.getHeader("X-Request-Id"))
+        val operationId = safeId(request.getHeader("X-Operation-Id"))
         val sample = Timer.start(registry)
         MDC.put("requestId", requestId)
+        MDC.put("operationId", operationId)
         response.setHeader("X-Request-Id", requestId)
+        response.setHeader("X-Operation-Id", operationId)
         try { chain.doFilter(request, response) }
         finally {
             // Не используем URL как tag: UUID в path создали бы metric-cardinality explosion.
             sample.stop(registry.timer("study.http.requests", "method", request.method, "status", response.status.toString()))
             MDC.remove("requestId")
+            MDC.remove("operationId")
         }
+    }
+
+    private fun safeId(candidate: String?): String =
+        candidate?.takeIf { it.length <= 128 && it.matches(SAFE_ID) } ?: UUID.randomUUID().toString()
+
+    private companion object {
+        val SAFE_ID = Regex("[A-Za-z0-9._:-]+")
     }
 }
 
@@ -42,4 +53,3 @@ class DiagnosticController {
         return mapOf("durationRequestedMs" to millis)
     }
 }
-

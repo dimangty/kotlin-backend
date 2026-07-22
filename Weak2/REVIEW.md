@@ -1,5 +1,5 @@
 # Review
 
-Статус: принято. Unit tests подтверждают optimistic version conflict и корректный `404`-сценарий при обновлении отсутствующей заметки; repository update атомарен для ключа.
+Статус: принято. Unit tests подтверждают optimistic version conflict и корректный `404`-сценарий при обновлении отсутствующей заметки; repository update атомарен для ключа. HTTP-тест проходит цепочку `201 -> 200 -> 409 -> 204 -> 404` и проверяет единый формат validation/malformed errors.
 
-Ограничение: пока нет web-тестов на весь набор 201/204/400/404/409 и pagination/PATCH contract — это задания недели.
+Ограничение: pagination и PATCH contract остаются заданиями недели.
