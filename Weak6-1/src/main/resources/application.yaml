@@ -1,0 +1,13 @@
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5436/isolation}
+    username: ${DB_USER:study}
+    password: ${DB_PASSWORD:study}
+    hikari:
+      maximum-pool-size: 12
+  flyway:
+    locations: classpath:db/migration
+
+server:
+  error:
+    include-message: always
