@@ -38,7 +38,10 @@ class InMemoryNoteRepository : NoteRepository {
     override fun save(note: Note, expectedVersion: Long?): Note {
         // compute атомарен для одного ключа: проверка version и запись не разделяются гонкой.
         return notes.compute(note.id) { _, current ->
-            if (expectedVersion != null && current?.version != expectedVersion) throw StaleNote()
+            if (expectedVersion != null) {
+                if (current == null) throw NoteNotFound(note.id)
+                if (current.version != expectedVersion) throw StaleNote()
+            }
             note.copy(version = (current?.version ?: -1) + 1)
         }!!
     }
@@ -67,4 +70,3 @@ class NoteController(private val service: NoteService) {
     @PutMapping("/{id}") fun update(@PathVariable id: UUID, @Valid @RequestBody body: UpdateNoteRequest) = service.update(id, body)
     @DeleteMapping("/{id}") @ResponseStatus(HttpStatus.NO_CONTENT) fun delete(@PathVariable id: UUID) = service.delete(id)
 }
-

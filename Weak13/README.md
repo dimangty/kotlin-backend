@@ -9,3 +9,4 @@ curl localhost:8080/actuator/health/readiness
 
 Задания: добавить PostgreSQL и migration check, спроектировать expand-contract в два релиза, описать backup/restore и rollback. Проверьте запуск на чистой машине.
 
+GitHub Actions workflow расположен в корне репозитория: `.github/workflows/week13-ci.yml`; команды выполняются с `working-directory: Weak13`.

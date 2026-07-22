@@ -18,21 +18,37 @@ import javax.sql.DataSource
 @Serializable data class TransferResult(val id: String, val status: String)
 
 class TransferService(private val dataSource: DataSource) {
-    fun transfer(request: TransferRequest): TransferResult = dataSource.connection.use { connection ->
-        connection.autoCommit = false
-        try {
-            val ids = listOf(UUID.fromString(request.from), UUID.fromString(request.to)).sorted()
-            connection.prepareStatement("SELECT id FROM accounts WHERE id IN (?,?) ORDER BY id FOR UPDATE").use { ps ->
-                ps.setObject(1, ids[0]); ps.setObject(2, ids[1]); ps.executeQuery().use { rs -> var found = 0; while (rs.next()) found++; check(found == 2) }
+    fun transfer(request: TransferRequest): TransferResult {
+        require(request.amountMinor > 0) { "amountMinor must be positive" }
+        val fromId = UUID.fromString(request.from)
+        val toId = UUID.fromString(request.to)
+        require(fromId != toId) { "accounts must differ" }
+
+        return dataSource.connection.use { connection ->
+            connection.autoCommit = false
+            try {
+                val ids = listOf(fromId, toId).sorted()
+                val balances = mutableMapOf<UUID, Long>()
+                connection.prepareStatement("SELECT id,balance_minor FROM accounts WHERE id IN (?,?) ORDER BY id FOR UPDATE").use { ps ->
+                    ps.setObject(1, ids[0]); ps.setObject(2, ids[1])
+                    ps.executeQuery().use { rs ->
+                        while (rs.next()) balances[rs.getObject("id", UUID::class.java)] = rs.getLong("balance_minor")
+                    }
+                }
+                check(balances.size == 2) { "account not found" }
+                check(balances.getValue(fromId) >= request.amountMinor) { "insufficient funds" }
+                val id = UUID.randomUUID()
+                connection.prepareStatement("UPDATE accounts SET balance_minor=balance_minor + ? WHERE id=?").use { ps ->
+                    ps.setLong(1, -request.amountMinor); ps.setObject(2, fromId); check(ps.executeUpdate() == 1)
+                    ps.setLong(1, request.amountMinor); ps.setObject(2, toId); check(ps.executeUpdate() == 1)
+                }
+                connection.commit()
+                TransferResult(id.toString(), "COMPLETED")
+            } catch (error: Exception) {
+                connection.rollback()
+                throw error
             }
-            val id = UUID.randomUUID()
-            connection.prepareStatement("UPDATE accounts SET balance_minor=balance_minor + ? WHERE id=?").use { ps ->
-                ps.setLong(1, -request.amountMinor); ps.setObject(2, UUID.fromString(request.from)); ps.executeUpdate()
-                ps.setLong(1, request.amountMinor); ps.setObject(2, UUID.fromString(request.to)); ps.executeUpdate()
-            }
-            connection.commit()
-            TransferResult(id.toString(), "COMPLETED")
-        } catch (error: Exception) { connection.rollback(); throw error }
+        }
     }
 }
 

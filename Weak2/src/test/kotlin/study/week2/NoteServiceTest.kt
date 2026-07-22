@@ -3,6 +3,7 @@ package study.week2
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
+import java.util.UUID
 
 class NoteServiceTest {
     private val service = NoteService(InMemoryNoteRepository())
@@ -16,5 +17,11 @@ class NoteServiceTest {
         }
         assertEquals("new", service.get(created.id).title)
     }
-}
 
+    @Test
+    fun `updating a missing note reports not found`() {
+        assertThrows(NoteNotFound::class.java) {
+            service.update(UUID.randomUUID(), UpdateNoteRequest("missing", version = 0))
+        }
+    }
+}

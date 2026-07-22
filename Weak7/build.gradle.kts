@@ -8,6 +8,7 @@ group = "study.backend"
 version = "0.1.0"
 java { toolchain { languageVersion = JavaLanguageVersion.of(17) } }
 repositories { mavenCentral() }
+extra["testcontainers.version"] = "2.0.5"
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-jdbc")
@@ -15,6 +16,15 @@ dependencies {
     implementation("org.flywaydb:flyway-database-postgresql")
     runtimeOnly("org.postgresql:postgresql")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    // Spring Boot 3.4 pins Testcontainers 1.x; enforce 2.x for Docker Engine 29 compatibility.
+    testImplementation(enforcedPlatform("org.testcontainers:testcontainers-bom:2.0.5"))
+    testImplementation("org.testcontainers:testcontainers-junit-jupiter")
+    testImplementation("org.testcontainers:testcontainers-postgresql")
 }
-tasks.withType<Test> { useJUnitPlatform() }
-
+tasks.withType<Test> {
+    useJUnitPlatform()
+    val desktopSocket = file("${System.getProperty("user.home")}/.docker/run/docker.sock")
+    if (desktopSocket.exists() && System.getenv("DOCKER_HOST") == null) {
+        environment("DOCKER_HOST", "unix://${desktopSocket.absolutePath}")
+    }
+}

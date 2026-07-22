@@ -1,7 +1,14 @@
-name: ci
-on: [push, pull_request]
+name: week-13-ci
+on:
+  push:
+    paths: ["Weak13/**", ".github/workflows/week13-ci.yml"]
+  pull_request:
+    paths: ["Weak13/**", ".github/workflows/week13-ci.yml"]
 permissions:
   contents: read
+defaults:
+  run:
+    working-directory: Weak13
 jobs:
   test-and-image:
     runs-on: ubuntu-latest
@@ -10,6 +17,5 @@ jobs:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: "17", cache: gradle }
       - uses: gradle/actions/setup-gradle@v4
-      - run: gradle test
+      - run: ./gradlew test --no-daemon
       - run: docker build -t week13:${{ github.sha }} .
-

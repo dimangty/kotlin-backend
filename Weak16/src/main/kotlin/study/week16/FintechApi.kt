@@ -12,6 +12,12 @@ data class AccountView(val id: UUID, val ownerId: UUID, val currency: String, va
 data class CreateTransfer(val fromAccountId: UUID, val toAccountId: UUID, val amountMinor: Long)
 data class TransferView(val id: UUID, val status: String)
 data class LedgerEntryView(val id: Long, val transferId: UUID, val amountMinor: Long)
+private data class StoredTransfer(
+    val view: TransferView,
+    val fromAccountId: UUID,
+    val toAccountId: UUID,
+    val amountMinor: Long,
+)
 
 @Service
 class FintechService(private val jdbc: JdbcTemplate) {
@@ -31,15 +37,28 @@ class FintechService(private val jdbc: JdbcTemplate) {
     @Transactional
     fun transfer(key: String, command: CreateTransfer, actor: String): TransferView {
         require(command.amountMinor > 0 && command.fromAccountId != command.toAccountId)
-        existing(key)?.let { return it }
+        existing(key, command)?.let { return it }
         val ids = listOf(command.fromAccountId, command.toAccountId).sorted()
         val rows = jdbc.query("SELECT id,balance_minor,currency FROM accounts WHERE id IN (?,?) ORDER BY id FOR UPDATE",
             { rs, _ -> Triple(rs.getObject("id", UUID::class.java), rs.getLong("balance_minor"), rs.getString("currency")) }, ids[0], ids[1])
         check(rows.size == 2 && rows.map { it.third }.distinct().size == 1) { "accounts absent or currencies differ" }
+
+        // Повторная проверка после ordered locks закрывает race двух одинаковых POST.
+        existing(key, command)?.let { return it }
         check(rows.first { it.first == command.fromAccountId }.second >= command.amountMinor) { "insufficient funds" }
 
         val id = UUID.randomUUID()
-        jdbc.update("INSERT INTO transfers(id,idempotency_key,from_account_id,to_account_id,amount_minor) VALUES (?,?,?,?,?)", id,key,command.fromAccountId,command.toAccountId,command.amountMinor)
+        val inserted = jdbc.update(
+            """
+            INSERT INTO transfers(id,idempotency_key,from_account_id,to_account_id,amount_minor)
+            VALUES (?,?,?,?,?)
+            ON CONFLICT (idempotency_key) DO NOTHING
+            """.trimIndent(),
+            id, key, command.fromAccountId, command.toAccountId, command.amountMinor,
+        )
+        if (inserted == 0) {
+            return existing(key, command) ?: error("idempotency conflict without a stored transfer")
+        }
         jdbc.update("UPDATE accounts SET balance_minor=balance_minor-? WHERE id=?", command.amountMinor, command.fromAccountId)
         jdbc.update("UPDATE accounts SET balance_minor=balance_minor+? WHERE id=?", command.amountMinor, command.toAccountId)
         jdbc.update("INSERT INTO ledger_entries(transfer_id,account_id,amount_minor) VALUES (?,?,?),(?,?,?)", id,command.fromAccountId,-command.amountMinor,id,command.toAccountId,command.amountMinor)
@@ -48,8 +67,29 @@ class FintechService(private val jdbc: JdbcTemplate) {
         return TransferView(id, "COMPLETED")
     }
 
-    fun existing(key: String): TransferView? = jdbc.query("SELECT id,status FROM transfers WHERE idempotency_key=?",
-        { rs, _ -> TransferView(rs.getObject("id", UUID::class.java), rs.getString("status")) }, key).firstOrNull()
+    private fun existing(key: String, command: CreateTransfer): TransferView? {
+        val stored = jdbc.query(
+            """
+            SELECT id,status,from_account_id,to_account_id,amount_minor
+            FROM transfers WHERE idempotency_key=?
+            """.trimIndent(),
+            { rs, _ ->
+                StoredTransfer(
+                    TransferView(rs.getObject("id", UUID::class.java), rs.getString("status")),
+                    rs.getObject("from_account_id", UUID::class.java),
+                    rs.getObject("to_account_id", UUID::class.java),
+                    rs.getLong("amount_minor"),
+                )
+            },
+            key,
+        ).firstOrNull() ?: return null
+        require(
+            stored.fromAccountId == command.fromAccountId &&
+                stored.toAccountId == command.toAccountId &&
+                stored.amountMinor == command.amountMinor,
+        ) { "idempotency key was already used for another request" }
+        return stored.view
+    }
 
     fun transfer(id: UUID): TransferView = jdbc.queryForObject(
         "SELECT id,status FROM transfers WHERE id=?",

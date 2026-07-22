@@ -20,12 +20,18 @@ SELECT id, amount_minor, created_at FROM payments
 WHERE user_id = 42 AND created_at >= now() - interval '90 days'
 ORDER BY created_at DESC LIMIT 50;
 
-CREATE INDEX payments_user_created_idx ON payments(user_id, created_at DESC) INCLUDE (amount_minor);
+-- id и amount_minor включены, чтобы history query мог стать Index Only Scan
+-- после VACUUM, если visibility map разрешает не читать heap.
+CREATE INDEX payments_user_created_idx ON payments(user_id, created_at DESC) INCLUDE (id, amount_minor);
 CREATE INDEX payments_created_user_idx ON payments(created_at DESC, user_id);
-CREATE INDEX payments_pending_idx ON payments(created_at) WHERE status = 'PENDING';
+CREATE INDEX payments_pending_idx ON payments(created_at) INCLUDE (id) WHERE status = 'PENDING';
 VACUUM (ANALYZE) payments;
+
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT id, amount_minor, created_at FROM payments
+WHERE user_id = 42 AND created_at >= now() - interval '90 days'
+ORDER BY created_at DESC LIMIT 50;
 
 -- Predicate совпадает с partial index, поэтому он применим безопасно.
 EXPLAIN (ANALYZE, BUFFERS)
 SELECT id FROM payments WHERE status = 'PENDING' AND created_at < now() - interval '10 minutes';
-
