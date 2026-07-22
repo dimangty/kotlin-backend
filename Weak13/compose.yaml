@@ -1,0 +1,13 @@
+services:
+  app:
+    build: .
+    ports: ["8080:8080"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8080/actuator/health/readiness"]
+      interval: 10s
+      timeout: 2s
+      retries: 5
+    read_only: true
+    tmpfs: ["/tmp"]
+    stop_grace_period: 25s
+

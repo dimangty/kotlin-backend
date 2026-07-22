@@ -1,0 +1,7 @@
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/final}
+    username: ${DB_USER:study}
+    password: ${DB_PASSWORD:study}
+management.endpoints.web.exposure.include: health,metrics
+

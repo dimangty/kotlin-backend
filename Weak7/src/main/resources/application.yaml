@@ -1,0 +1,8 @@
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/locks}
+    username: ${DB_USER:study}
+    password: ${DB_PASSWORD:study}
+  flyway:
+    locations: classpath:db/migration
+
