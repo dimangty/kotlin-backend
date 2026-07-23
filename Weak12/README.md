@@ -1,11 +1,85 @@
-# Неделя 12. Logs, metrics и диагностика
+# Неделя 12. Логи, метрики и диагностика производительности
 
-Фильтр связывает request ID, response header, structured log context и timer. Actuator экспортирует health/metrics/Prometheus.
+**Результат недели:** уметь ответить на три вопроса инцидента - какой запрос медленный, почему он медленный и кого он блокирует.
+
+Неделя состоит из двух частей: приложение, которое умеет о себе рассказывать (correlation IDs, метрики, Prometheus), и лаборатория расследования на настоящей базе (`slow-query-lab.sql`). Без второй части первая остаётся дашбордом, по которому нельзя принять решение.
+
+## Часть 1. Приложение
+
+| Тема | Где смотреть |
+|---|---|
+| Correlation ID сквозь запрос | [RequestCorrelationFilter.kt](src/main/kotlin/study/week12/RequestCorrelationFilter.kt) - `requestId` и `operationId` попадают в MDC, в заголовки ответа и снимаются в `finally` |
+| Валидация клиентского ввода в логах | `safeId`: длина не больше 128 и разрешённый набор символов; иначе генерируется свой UUID. Заголовок от клиента - недоверенные данные, в том числе для логов |
+| Формат лога | [application.yaml](src/main/resources/application.yaml) - `request` и `operation` присутствуют в каждой строке |
+| Ограниченная кардинальность метрик | таймер тегируется методом и статусом, но не URL: UUID в пути создал бы новую серию метрик на каждый запрос |
+| Actuator и Prometheus | `management.endpoints.web.exposure.include: health,info,prometheus,metrics` |
+| Тест наблюдаемости | [RequestContextFilterTest.kt](src/test/kotlin/study/week12/RequestContextFilterTest.kt) - проверяются и заголовки, и рост счётчика таймера |
 
 ```bash
+./gradlew test
 ./gradlew bootRun
-curl -H 'X-Request-Id: incident-42' 'localhost:8080/work?millis=50'
-curl localhost:8080/actuator/prometheus
+
+curl -i -H 'X-Request-Id: incident-42' 'localhost:8080/work?millis=50'
+curl -s localhost:8080/actuator/prometheus | grep study_http_requests
 ```
 
-Request ID и operation ID проходят через безопасно ограниченные headers, MDC и response; HTTP-тест также проверяет timer. Задания: добавить Hikari/transaction metrics, slow-query logging и incident checklist «lock wait vs bad plan». Не логировать Authorization, tokens, пароли и PII.
+Что не логируется никогда: `Authorization`, токены, пароли, номера счетов и любые персональные данные. Лог живёт дольше инцидента и уезжает в системы, доступ к которым шире, чем к базе.
+
+## Часть 2. Лаборатория расследования
+
+```bash
+docker compose up -d          # PG_PORT=55432 docker compose up -d, если 5432 занят
+docker compose exec -T postgres psql -U study -d diag -v ON_ERROR_STOP=1 < slow-query-lab.sql
+```
+
+Compose поднимает PostgreSQL с `shared_preload_libraries=pg_stat_statements`, `log_min_duration_statement=200` и `idle_in_transaction_session_timeout=60s`. Первое нельзя включить на живом сервере через `CREATE EXTENSION` - это разделяемая память, нужен рестарт; знать это стоит до инцидента, а не во время.
+
+Скрипт проходит расследование целиком, на миллионе строк:
+
+| Блок | Шаг расследования | Что видно |
+|---|---|---|
+| 1-2 | кто виноват | `pg_stat_statements` сортируется по `total_exec_time`: запрос истории платежей - 23.4 мс на вызов и 186 920 буферов |
+| 3 | почему | `EXPLAIN (ANALYZE, BUFFERS)`: Parallel Seq Scan, 333 317 строк отброшено фильтром на каждый воркер |
+| 4 | исправление и подтверждение | covering index: 0.056 мс и 1 066 буферов - в 175 раз меньше работы; цена - индекс на 60 MB при heap 73 MB |
+| 5 | плохой план или блокировка | сценарий на две сессии: `wait_event_type = 'Lock'` и `pg_blocking_pids()` показывают, что план тут ни при чём |
+| 6 | чеклист инцидента | четыре запроса: дорогие запросы, долгие транзакции, `deadlocks`/cache hit, таблицы с преобладанием Seq Scan |
+
+Блок 4 - главный вывод недели о метриках: сравнивать планы нужно по буферам, а не по времени. Время зависит от того, что уже лежит в page cache, буферы - это фактически выполненная работа.
+
+Блок 5 - главный вывод о диагностике: `pg_stat_statements` включает в время выполнения ожидание блокировки. Запрос с идеальным планом может стоять в очереди минутами, и отличить это можно только по `pg_stat_activity`.
+
+## Задания
+
+1. **Метрики пула и транзакций.** Подключить к проекту DataSource и вывести `hikaricp_connections_active`, `hikaricp_connections_pending`, длительность транзакций. Проверить свою гипотезу из задания 5 недели 8: pending начнёт расти раньше, чем что-либо ещё.
+2. **Свой incident-дашборд.** Собрать из блока 6 лаборатории список из 4-6 запросов, который вы держите под рукой: дорогие запросы, долгие транзакции, `idle in transaction`, deadlocks, cache hit ratio. Проверить, что по нему инцидент читается за минуту.
+3. **Найти и починить медленный запрос самому.** Взять `Weak5` или `Weak16`, снять `pg_stat_statements`, найти худший запрос, исправить и подтвердить теми же метриками. Отчёт - по форме из [docs/index-track.md](../docs/index-track.md).
+4. **Ограничения длительности.** Выставить `statement_timeout` и `lock_timeout` на уровне приложения и объяснить выбор значений для платёжного endpoint (см. контрольный вопрос недели 7).
+5. **Связать HTTP и SQL.** Пробросить `requestId` в комментарий SQL-запроса (`/* request=... */`) и найти его в `pg_stat_activity.query` во время выполнения. Это даёт прямой ответ на вопрос «какой HTTP-запрос сейчас держит базу».
+6. **Проверить, что секреты не текут.** Отправить запрос с `Authorization` и с PII в теле, затем грепнуть логи приложения и лог PostgreSQL. Найденное - это инцидент, а не задание со звёздочкой.
+
+## Что разобрать с ментором
+
+- Разбор инцидента: latency выросла из-за ожидания блокировки или из-за плохого плана - по вашим собственным данным из блока 5.
+- Что логируется на каждом запросе и во сколько это обходится по объёму.
+- Какие алерты имеют смысл на одном сервисе: lock waits, deadlocks, длинные транзакции, насыщение пула.
+
+## Критерий готовности
+
+- По логам и метрикам можно связать HTTP-запрос, транзакцию и SQL.
+- Есть ограничения длительности запросов и транзакций.
+- Можешь за минуту показать самый дорогой запрос базы и объяснить, дорог он планом или ожиданием.
+
+## Контрольные вопросы
+
+- Почему URL нельзя использовать как tag метрики?
+- Чем `total_exec_time` полезнее `mean_exec_time` и когда наоборот?
+- Почему `pg_stat_statements` требует рестарта сервера?
+- Как отличить «медленно из-за плана» от «медленно из-за блокировки», имея только эти две системы?
+- Почему `idle in transaction` опаснее долгого запроса?
+
+## Материалы
+
+- [Spring Boot: Metrics](https://docs.spring.io/spring-boot/reference/actuator/metrics.html)
+- [Micrometer Concepts](https://docs.micrometer.io/micrometer/reference/concepts.html)
+- [PostgreSQL: pg_stat_statements](https://www.postgresql.org/docs/17/pgstatstatements.html)
+- [PostgreSQL: Monitoring Statistics](https://www.postgresql.org/docs/17/monitoring-stats.html)

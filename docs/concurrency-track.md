@@ -16,7 +16,7 @@
 ## Семь обязательных экспериментов
 
 - [ ] **1. Snapshot и видимость строк в двух сессиях.** `Weak6/session-a.sql` секции 1 и 4: non-repeatable read в Read Committed и стабильный snapshot в Repeatable Read.
-- [ ] **2. Lock wait и определение блокирующей сессии.** `Weak7/locks-session-{a,b}.sql` секция 1 плюс `Weak7/locks-inspect.sql`: `pg_blocking_pids()`, `pg_locks` с `granted = false`.
+- [ ] **2. Lock wait и определение блокирующей сессии.** `Weak7/locks-session-{a,b}.sql` секция 1 плюс `Weak7/locks-inspect.sql`: `pg_blocking_pids()`, `pg_locks` с `granted = false`. Взгляд на ту же проблему со стороны инцидента - `Weak12/slow-query-lab.sql` блок 5: как отличить «медленно из-за плана» от «медленно из-за блокировки».
 - [ ] **3. Deadlock и выбор жертвы.** `Weak7/locks-session-{a,b}.sql` секция 2. Зафиксировать `SQLSTATE 40P01` и то, какую транзакцию откатила база - это решение принимает PostgreSQL, а не приложение.
 - [ ] **4. Lost update и минимум два способа починки.** `Weak6/session-a.sql` секции 2-3 (atomic UPDATE), затем `Weak6-1/AccountService.kt` и `SerializableDebitService.kt` - те же два подхода в приложении.
 - [ ] **5. Serialization failure и ограниченный retry всей транзакции.** `Weak6/session-a.sql` секция 5, `Weak6-1/SerializableDebitService.kt`.

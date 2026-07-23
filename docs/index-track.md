@@ -12,7 +12,8 @@
 | Виды scan | Seq Scan, Index Scan, Bitmap Index/Heap Scan, Index Only Scan | `Weak5/lab.sql`, `Weak5/special-indexes.sql` |
 | Составные индексы | порядок колонок, equality/range/sort, ведущие колонки | `Weak5/lab.sql`, секция "Порядок колонок" |
 | Дополнительные формы | `INCLUDE`, partial, expression, unique, GIN, GiST, BRIN | `Weak5/special-indexes.sql` |
-| Цена индекса | INSERT/UPDATE/DELETE overhead, место, WAL, cache pressure, reindex | `Weak4/write-overhead.sql` |
+| Цена индекса | INSERT/UPDATE/DELETE overhead, место, WAL, cache pressure, reindex | `Weak4/write-overhead.sql`, `Weak8/migration-lab.sql` блок 5 (`CREATE INDEX` против `CONCURRENTLY`) |
+| Поиск кандидата на индекс | `pg_stat_statements`, отбор запроса по суммарному времени, подтверждение по buffers | `Weak12/slow-query-lab.sql` |
 
 ## Семь обязательных лабораторных
 
