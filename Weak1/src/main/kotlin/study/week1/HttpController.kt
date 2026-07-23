@@ -10,9 +10,6 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import java.util.concurrent.TimeUnit
 
-data class EchoRequest(val message: String = "")
-data class EchoResponse(val message: String, val requestId: String?)
-
 @RestController
 class HttpController {
     @GetMapping("/health")
@@ -33,4 +30,3 @@ class HttpController {
         // POST здесь повторяем, но не идемпотентен по контракту: сервер не обещает один эффект.
         ResponseEntity.ok(EchoResponse(request.message, requestId))
 }
-
