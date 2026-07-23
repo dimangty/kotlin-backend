@@ -16,11 +16,11 @@
 |---|---|---|
 | 1 | Spring Boot lifecycle, health/hello/echo, HTTP contract tests, JSON Kotlin module | profiles и наблюдение thread-pool saturation |
 | 2 | Слои, DTO, validation, optimistic version, единые errors, HTTP-коды 201/200/409/204/404 | pagination и PATCH semantics |
-| 3 | Схема/constraints/seed запускаются, 100k payments | ещё 17 SQL-запросов и ledger seed; текущая проверка специально показывает projection 100000 против ledger 0 |
-| 4 | 1m events; Seq Scan -> Index Scan, low-cardinality status остаётся Seq Scan | сохранить планы как артефакты и измерить INSERT overhead |
-| 5 | 1m payments; covering/partial indexes, Index Only Scan, Heap Fetches 0 | таблица before/after/write price и отдельное измерение write overhead |
+| 3 | Схема/constraints/seed запускаются, 100k payments, 20 запросов, ledger.sql сводит projection и ledger в ноль | `UNIQUE (payment_id)` и собственный замер bloat |
+| 4 | 1m events; Seq Scan -> Index Scan, low-cardinality status остаётся Seq Scan; write overhead измерен (0/1/4 индекса) | сохранить планы как артефакты и повторить UPDATE после fillfactor 70 |
+| 5 | 1m payments; covering/partial indexes, Index Only Scan, Heap Fetches 0; порядок колонок, отказ planner от индекса, expression/GIN/BRIN | сводная таблица before/after/write price и эксперимент с падением correlation |
 | 6 | Пошаговые сценарии non-repeatable read, lost update, atomic fix, RR и Serializable | вручную выполнить две сессии и оформить timelines/retry |
-| 7 | Ordered locks, idempotency UNIQUE, ledger, duplicate payload check, 50 parallel transfers | pg_locks/blocker lab и bounded retry 40P01/40001 |
+| 7 | Ordered locks, idempotency UNIQUE, ledger, duplicate payload check, 50 parallel transfers; SQL-лаборатория lock wait/deadlock/SKIP LOCKED и разбор blocker через pg_locks | bounded retry 40P01/40001 в сервисе и worker очереди на SKIP LOCKED |
 | 8 | Flyway + Hibernate validate + JPA dirty checking + JDBC projection на Testcontainers | controller, N+1 experiment, expand-contract migration |
 | 9 | Bcrypt, TTL opaque tokens, refresh rotation, 401/403 ownership tests | PostgreSQL persistence, hashed refresh tokens, logout/revoke-all, audit |
 | 10 | Реальный PostgreSQL, UNIQUE и deterministic parallel debit tests | Flyway-on-empty, FK/CHECK mutation tests и serialization retry test |
@@ -42,3 +42,16 @@
 - Week16 получил bounded operation identifiers, стабильный error contract и cursor pagination.
 
 `REVIEW.md` внутри изменённых недель обновлены после фактических прогонов.
+
+## Доработка 23 июля 2026
+
+Пройден разрыв между планом и материалами по двум главным темам трека. Всё добавленное прогнано на настоящем PostgreSQL 17 с `ON_ERROR_STOP=1`.
+
+- **Неделя 3.** `queries.sql` доведён с трёх запросов до двадцати, разбит на пять блоков. Добавлен `ledger.sql`: immutable проводки, пересчёт projection из них и наглядный цикл dead tuples -> `VACUUM`. Расхождение projection/ledger теперь не просто демонстрируется, но и закрывается.
+- **Неделя 4.** Добавлен `write-overhead.sql` - обязательная лабораторная 7 из раздела «Индексы». Измерено: 0/1/4 индекса дают ~130/~240/~1400 мс на INSERT и ~43/~63/~139 MB WAL.
+- **Неделя 5.** В `lab.sql` добавлены секции про порядок колонок (7 buffers против 489 на одном и том же запросе) и про осознанный отказ planner от индекса. Добавлен `special-indexes.sql`: expression, GIN и BRIN - типы индексов, которые план требует, а лаборатории раньше не трогали.
+- **Неделя 7.** Добавлена SQL-лаборатория блокировок из четырёх файлов. Deadlock, lock wait, единый lock order и `SKIP LOCKED` проверены двумя параллельными сессиями; `locks-inspect.sql` - готовый набор запросов для разбора инцидента.
+- **Сквозные треки.** Разделы 3 и 4 плана оформлены как чек-листы: [docs/index-track.md](docs/index-track.md) и [docs/concurrency-track.md](docs/concurrency-track.md). Каждая обязательная лабораторная связана с конкретным файлом репозитория.
+- **Инфраструктура.** Все `compose.yaml` принимают `PG_PORT` (и `APP_PORT` для недели 13): раньше любая занятая 5432 на машине ломала запуск недели.
+
+Что осталось учебной работой - перечислено в таблице выше и в `REVIEW.md` каждой недели.
