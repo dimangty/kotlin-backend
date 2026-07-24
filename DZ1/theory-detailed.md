@@ -176,7 +176,7 @@ class UserController(private val service: UserService) {
 
 Ключевые понятия:
 - **IoC-контейнер и DI**: бины создаёт Spring, зависимости внедряются через конструктор.
-- **Автоконфигурация**: `@SpringBootApplication` включает `@EnableAutoConfiguration` — Spring смотрит на classpath и настраивает то, что нашёл (есть `spring-boot-starter-web` → поднимет встроенный Tomcat).
+- **Автоконфигурация**: `@SpringBootApplication` включает `@EnableAutoConfiguration` — Spring смотрит на classpath и настраивает то, что нашёл (есть `spring-boot-starter-webmvc` → поднимет встроенный Tomcat).
 - **Стартеры**: `spring-boot-starter-*` — наборы согласованных по версиям зависимостей.
 - **Профили**: `application.yml` + `application-dev.yml`, активация `--spring.profiles.active=dev`.
 - **Actuator**: `/actuator/health`, `/actuator/metrics` из коробки.

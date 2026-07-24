@@ -17,7 +17,7 @@ class SerializableDebitService(
     private val transactionDefinition = DefaultTransactionDefinition().apply {
         isolationLevel = TransactionDefinition.ISOLATION_SERIALIZABLE
         propagationBehavior = TransactionDefinition.PROPAGATION_REQUIRES_NEW
-        name = "serializable-debit"
+        setName("serializable-debit")
     }
     private val transactionTemplate = TransactionTemplate(transactionManager, transactionDefinition)
 
@@ -32,11 +32,13 @@ class SerializableDebitService(
                 // В retry входит вся бизнес-транзакция: новый snapshot, повторная проверка
                 // остатка и новая запись. Повторять только UPDATE было бы логически неверно.
                 return transactionTemplate.execute {
-                    val current = jdbc.queryForObject(
-                        "SELECT balance_minor FROM accounts WHERE id = ?",
-                        Long::class.java,
-                        accountId,
-                    )!!
+                    val current = requireNotNull(
+                        jdbc.queryForObject(
+                            "SELECT balance_minor FROM accounts WHERE id = ?",
+                            Long::class.java,
+                            accountId,
+                        ),
+                    ) { "account balance must not be null" }
                     if (current < amountMinor) throw InsufficientFundsException()
 
                     jdbc.update(
@@ -45,7 +47,7 @@ class SerializableDebitService(
                         accountId,
                     )
                     AccountView(accountId, current - amountMinor, "SERIALIZABLE", attempt)
-                }!!
+                }
             } catch (error: RuntimeException) {
                 if (!error.isSerializationFailure() || attempt >= maxAttempts) throw error
 

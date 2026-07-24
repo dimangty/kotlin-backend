@@ -41,20 +41,22 @@ class IndexLabService(private val jdbc: JdbcTemplate) {
             )
         },
         publicId,
-    )!!
+    )
 
-    fun explainUuidLookup(publicId: UUID): String = jdbc.queryForObject(
-        // FORMAT JSON удобно отдавать клиенту без парсинга текстового дерева.
-        // ANALYZE действительно выполняет SELECT, а BUFFERS показывает чтения cache/heap.
-        """
-        EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
-        SELECT id, public_id, user_id, status, created_at
-        FROM events
-        WHERE public_id = ?
-        """.trimIndent(),
-        String::class.java,
-        publicId,
-    )!!
+    fun explainUuidLookup(publicId: UUID): String = requireNotNull(
+        jdbc.queryForObject(
+            // FORMAT JSON удобно отдавать клиенту без парсинга текстового дерева.
+            // ANALYZE действительно выполняет SELECT, а BUFFERS показывает чтения cache/heap.
+            """
+            EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
+            SELECT id, public_id, user_id, status, created_at
+            FROM events
+            WHERE public_id = ?
+            """.trimIndent(),
+            String::class.java,
+            publicId,
+        ),
+    ) { "EXPLAIN must return a JSON plan" }
 
     fun statusDistribution(): List<StatusCount> = jdbc.query(
         "SELECT status, count(*) AS total FROM events GROUP BY status ORDER BY status",
@@ -65,5 +67,5 @@ class IndexLabService(private val jdbc: JdbcTemplate) {
         SELECT pg_relation_size('events') AS heap_bytes,
                pg_indexes_size('events') AS indexes_bytes
         """.trimIndent(),
-    ) { rs, _ -> RelationSizes(rs.getLong("heap_bytes"), rs.getLong("indexes_bytes")) }!!
+    ) { rs, _ -> RelationSizes(rs.getLong("heap_bytes"), rs.getLong("indexes_bytes")) }
 }

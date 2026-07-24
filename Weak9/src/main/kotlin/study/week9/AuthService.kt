@@ -16,7 +16,10 @@ class AuthService(private val encoder: PasswordEncoder) {
     private val refresh = ConcurrentHashMap<String, TokenGrant>()
 
     fun register(credentials: Credentials): User {
-        val user = User(UUID.randomUUID(), credentials.email.lowercase(), encoder.encode(credentials.password))
+        val passwordHash = requireNotNull(encoder.encode(credentials.password)) {
+            "password encoder returned no hash"
+        }
+        val user = User(UUID.randomUUID(), credentials.email.lowercase(), passwordHash)
         if (users.putIfAbsent(user.email, user) != null) {
             throw ResponseStatusException(HttpStatus.CONFLICT, "email exists")
         }

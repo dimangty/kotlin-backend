@@ -20,7 +20,7 @@ log.info("transfer.completed", kv("userId", userId), kv("amount", amount), kv("d
 
 Строка не фильтруется и не агрегируется. Событие с полями позволяет спросить систему логов: «покажи все `transfer.completed` с `durationMs > 1000` за последний час».
 
-Формат вывода — JSON (в Spring Boot 3.4+ есть встроенная поддержка structured logging; классический вариант — `logstash-logback-encoder`). В консоль разработчика можно оставлять человекочитаемый формат, в проде — JSON.
+Формат вывода — JSON (в Spring Boot 4.1 есть встроенная поддержка structured logging; классический вариант — `logstash-logback-encoder`). В консоль разработчика можно оставлять человекочитаемый формат, в проде — JSON.
 
 ### 1.2 Уровни
 

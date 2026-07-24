@@ -12,13 +12,13 @@ class AccountService(private val jdbc: JdbcTemplate) {
         "INSERT INTO accounts(balance_minor) VALUES (?) RETURNING id, balance_minor",
         accountRowMapper("CREATE"),
         request.initialBalanceMinor,
-    )!!
+    )
 
     fun balance(accountId: UUID): AccountView = jdbc.queryForObject(
         "SELECT id, balance_minor FROM accounts WHERE id = ?",
         accountRowMapper("READ"),
         accountId,
-    )!!
+    )
 
     fun atomicDebit(accountId: UUID, amountMinor: Long): AccountView {
         require(amountMinor > 0) { "amountMinor must be positive" }
@@ -45,11 +45,13 @@ class AccountService(private val jdbc: JdbcTemplate) {
 
         // FOR UPDATE удерживает row lock до commit. Второй запрос увидит баланс только
         // после первой транзакции и не сможет принять решение по устаревшему значению.
-        val current = jdbc.queryForObject(
-            "SELECT balance_minor FROM accounts WHERE id = ? FOR UPDATE",
-            Long::class.java,
-            accountId,
-        )!!
+        val current = requireNotNull(
+            jdbc.queryForObject(
+                "SELECT balance_minor FROM accounts WHERE id = ? FOR UPDATE",
+                Long::class.java,
+                accountId,
+            ),
+        ) { "account balance must not be null" }
         if (current < amountMinor) throw InsufficientFundsException()
 
         val newBalance = current - amountMinor

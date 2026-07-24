@@ -20,7 +20,7 @@ class FintechService(private val jdbc: JdbcTemplate) {
             )
         },
         request.email,
-    )!!
+    )
 
     fun openAccount(request: OpenAccountRequest): AccountView = jdbc.queryForObject(
         """
@@ -38,7 +38,7 @@ class FintechService(private val jdbc: JdbcTemplate) {
         },
         request.ownerId,
         request.currency,
-    )!!
+    )
 
     fun createPayment(request: CreatePaymentRequest): PaymentView = jdbc.queryForObject(
         """
@@ -57,7 +57,7 @@ class FintechService(private val jdbc: JdbcTemplate) {
         request.accountId,
         request.amountMinor,
         request.status.name,
-    )!!
+    )
 
     fun accountSnapshot(accountId: UUID): AccountSnapshot = jdbc.queryForObject(
         """
@@ -88,7 +88,7 @@ class FintechService(private val jdbc: JdbcTemplate) {
             )
         },
         accountId,
-    )!!
+    )
 
     fun physicalTuple(accountId: UUID): PhysicalTuple = jdbc.queryForObject(
         // ctid указывает на физическое место версии строки, xmin — создавшую её transaction.
@@ -102,5 +102,5 @@ class FintechService(private val jdbc: JdbcTemplate) {
             )
         },
         accountId,
-    )!!
+    )
 }

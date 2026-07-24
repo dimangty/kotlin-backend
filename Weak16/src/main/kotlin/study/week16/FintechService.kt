@@ -19,7 +19,7 @@ class FintechService(private val jdbc: JdbcTemplate) {
     fun account(id: UUID): AccountView = jdbc.queryForObject(
         "SELECT id,owner_id,currency,balance_minor FROM accounts WHERE id=?",
         { rs, _ -> AccountView(rs.getObject("id", UUID::class.java), rs.getObject("owner_id", UUID::class.java), rs.getString("currency"), rs.getLong("balance_minor")) }, id,
-    )!!
+    )
 
     @Transactional
     fun transfer(key: String, command: CreateTransfer, actor: String): TransferView {
@@ -83,7 +83,7 @@ class FintechService(private val jdbc: JdbcTemplate) {
     fun transfer(id: UUID): TransferView = jdbc.queryForObject(
         "SELECT id,status FROM transfers WHERE id=?",
         { rs, _ -> TransferView(rs.getObject("id", UUID::class.java), rs.getString("status")) }, id,
-    )!!
+    )
 
     fun ledger(accountId: UUID, cursor: Long?, limit: Int): List<LedgerEntryView> {
         require(limit in 1..100) { "limit must be between 1 and 100" }

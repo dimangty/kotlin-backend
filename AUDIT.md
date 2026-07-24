@@ -1,11 +1,12 @@
 # Аудит учебных проектов по Plan.pdf
 
-Проверено 22 июля 2026 года. План прочитан целиком и визуально проверен по всем 26 страницам. Каталоги `Weak1`...`Weak16` сопоставлены с неделями 1...16; историческое имя `Weak` сохранено, чтобы не ломать пути CI и ссылки.
+Проверено 24 июля 2026 года. План прочитан целиком и визуально проверен по всем 26 страницам. Каталоги `Weak1`...`Weak16` сопоставлены с неделями 1...16; историческое имя `Weak` сохранено, чтобы не ломать пути CI и ссылки.
 
 ## Итог
 
-- Все 12 Gradle-проектов собираются; 29 тестов прошли без failures/skips.
-- Testcontainers-проекты недель 7, 8, 10, 15 и 16 проверены на PostgreSQL 17.
+- Все 16 Gradle-проектов собираются; 37 тестов прошли без failures/errors/skips.
+- Testcontainers-проекты `Weak3-1`...`Weak8`, `Weak10`, `Weak15` и `Weak16` проверены на PostgreSQL 17 и Docker Engine 29.6.2.
+- Для всех 12 Spring-приложений собраны executable `bootJar`, для обоих Ktor-приложений — fat JAR.
 - SQL недель 3-6 выполнен с `ON_ERROR_STOP=1`: 100 тысяч строк в Week3, по миллиону в Week4/5, setup Week6.
 - Week13 собран как реальный Docker image: readiness `200/UP`, user `app`, root filesystem read-only.
 - Временные Docker-контейнеры и audit image после проверки удалены.
@@ -42,6 +43,15 @@
 - Week16 получил bounded operation identifiers, стабильный error contract и cursor pagination.
 
 `REVIEW.md` внутри изменённых недель обновлены после фактических прогонов.
+
+## Миграция фреймворков 24 июля 2026
+
+- Двенадцать Spring-проектов переведены с Spring Boot 3.4.5 на 4.1.0 и на модульные Boot 4 starters (`webmvc`, `jdbc`/`data-jpa` test, `flyway`, `security-test`).
+- Spring HTTP-контракты переведены с Jackson 2 на Jackson 3: координаты и типы `tools.jackson.*`, а deprecated `JsonNode.asText()` заменён на `asString()`.
+- Исправлены несовместимости Spring Framework 7/Spring Security 7: новый package `AutoConfigureMockMvc`, JSpecify nullability JDBC/password APIs и Java setter `DefaultTransactionDefinition.setName`.
+- `Weak14` и `Weak15` переведены с Ktor 3.1.2 на актуальный maintenance-релиз 3.5.1.
+- Все Gradle-проекты используют Kotlin 2.3.21; Spring-модули включают рекомендованный `-Xannotation-default-target=param-property`.
+- `Weak10` и `Weak11` оставлены framework-neutral по назначению лабораторий; обновлены только Kotlin/JUnit toolchains.
 
 ## Доработка 23 июля 2026
 

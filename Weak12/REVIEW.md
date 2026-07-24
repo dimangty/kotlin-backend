@@ -1,5 +1,7 @@
 # Review
 
+Миграция 24 июля 2026: Spring Boot 4.1.0, Kotlin 2.3.21 и модульный Web MVC test starter; оба observability/HTTP-теста проходят.
+
 Статус: Spring context и HTTP-тесты проходят. Исправлен конфликт имени custom filter со встроенным `requestContextFilter`. Request/operation IDs проходят через MDC/headers, небезопасные client IDs заменяются, timer использует bounded tags, Actuator/Prometheus включены.
 
 Добавлены `compose.yaml` (PostgreSQL 17 с `shared_preload_libraries=pg_stat_statements`, `log_min_duration_statement=200`, `idle_in_transaction_session_timeout=60s`) и `slow-query-lab.sql`: раньше неделя требовала pg_stat_statements и разбор медленного запроса, но базы в проекте не было вообще.

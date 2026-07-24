@@ -1,5 +1,7 @@
 # Review
 
+Миграция 24 июля 2026: Spring Boot 4.1.0, Kotlin 2.3.21 и модульные JPA/Flyway starters; Testcontainers-тест проходит на PostgreSQL 17 и Hibernate 7.
+
 Статус: Testcontainers-тест проходит с PostgreSQL 17. Flyway миграция применяется, Hibernate `validate` проходит, JPA dirty checking меняет status, а JDBC projection возвращает daily total. Testcontainers зафиксирован на 2.0.5 для совместимости с текущим Docker Engine.
 
 Добавлен `migration-lab.sql` - неделя больше не обсуждает безопасные миграции только на словах. Скрипт прогнан на PostgreSQL 17 с `ON_ERROR_STOP=1` на таблице в 500 000 строк (60 MB):

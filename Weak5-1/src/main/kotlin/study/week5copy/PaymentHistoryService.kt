@@ -62,21 +62,23 @@ class PaymentHistoryService(private val jdbc: JdbcTemplate) {
         )
     }
 
-    fun explainHistory(userId: Long, from: Instant): String = jdbc.queryForObject(
-        // estimated/actual rows и buffers позволяют проверить решение численно,
-        // а не считать любой созданный индекс автоматически полезным.
-        """
-        EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
-        SELECT id, user_id, reference, status, amount_minor, created_at
-        FROM payments
-        WHERE user_id = ? AND created_at >= ?
-        ORDER BY created_at DESC
-        LIMIT 50
-        """.trimIndent(),
-        String::class.java,
-        userId,
-        java.sql.Timestamp.from(from),
-    )!!
+    fun explainHistory(userId: Long, from: Instant): String = requireNotNull(
+        jdbc.queryForObject(
+            // estimated/actual rows и buffers позволяют проверить решение численно,
+            // а не считать любой созданный индекс автоматически полезным.
+            """
+            EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
+            SELECT id, user_id, reference, status, amount_minor, created_at
+            FROM payments
+            WHERE user_id = ? AND created_at >= ?
+            ORDER BY created_at DESC
+            LIMIT 50
+            """.trimIndent(),
+            String::class.java,
+            userId,
+            java.sql.Timestamp.from(from),
+        ),
+    ) { "EXPLAIN must return a JSON plan" }
 
     fun indexes(): List<IndexDescription> = jdbc.query(
         """

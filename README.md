@@ -26,11 +26,11 @@
 
 ## Технологии
 
-- Kotlin 2.1.20, JDK 17 и Gradle Kotlin DSL;
-- Spring Boot 3.4.5, Spring MVC, Spring Security, JDBC и JPA;
-- Ktor 3.1.2 и Kotlin Coroutines;
+- Kotlin 2.3.21, JDK 17 и Gradle Kotlin DSL;
+- Spring Boot 4.1.0, Spring MVC, Spring Security, JDBC и JPA;
+- Ktor 3.5.1 и Kotlin Coroutines;
 - PostgreSQL 17, Flyway и HikariCP;
-- JUnit 5 и Testcontainers 2.0.5;
+- JUnit Platform и Testcontainers 2.0.5;
 - Docker, Docker Compose, Actuator, Micrometer и Prometheus.
 
 ## Карта курса

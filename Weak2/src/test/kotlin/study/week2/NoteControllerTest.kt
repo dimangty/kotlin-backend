@@ -1,9 +1,9 @@
 package study.week2
 
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
@@ -37,7 +37,7 @@ class NoteControllerTest @Autowired constructor(
             contentType = MediaType.APPLICATION_JSON
             content = """{"title":"REST","body":"first"}"""
         }.andExpect { status { isCreated() } }.andReturn().response.contentAsString
-        val id = json.readTree(created)["id"].asText()
+        val id = json.readTree(created)["id"].asString()
 
         mvc.put("/notes/$id") {
             contentType = MediaType.APPLICATION_JSON

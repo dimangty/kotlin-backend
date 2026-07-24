@@ -1,5 +1,7 @@
 # Code review — Weak4-1
 
+Миграция 24 июля 2026: Spring Boot 4.1.0, Kotlin 2.3.21, Jackson 3 и модульные JDBC/Flyway starters; два Testcontainers-теста проходят на PostgreSQL 17.
+
 Дата: 22 июля 2026. Вердикт: готово, блокирующих замечаний нет.
 
 ## Проверено

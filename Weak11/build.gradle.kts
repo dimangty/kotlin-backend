@@ -1,5 +1,5 @@
 plugins {
-    kotlin("jvm") version "2.1.20"
+    kotlin("jvm") version "2.3.21"
     application
 }
 group = "study.backend"
@@ -13,4 +13,3 @@ dependencies {
 }
 application { mainClass = "study.week11.ApplicationKt" }
 tasks.test { useJUnitPlatform() }
-
