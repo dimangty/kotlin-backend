@@ -1,3 +1,5 @@
+// Настраивает правила доступа и цепочку фильтров Spring Security.
+// Компонент относится к учебному модулю недели 9 и раскрывает его основной пример.
 package study.week9
 
 import org.springframework.context.annotation.Bean

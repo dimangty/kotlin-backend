@@ -1,6 +1,15 @@
+// Проверяет сохранение платежей и расчёт дневных агрегатов.
+// Тест относится к учебному модулю недели 8 и фиксирует ожидаемое поведение кода.
 package study.week8
 
+import org.junit.jupiter.api.parallel.Execution
+import org.junit.jupiter.api.parallel.ExecutionMode
+import org.springframework.test.annotation.DirtiesContext
+
+import org.junit.jupiter.api.TestInstance
+
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -16,6 +25,9 @@ import java.util.UUID
 
 @SpringBootTest
 @Testcontainers
+@TestInstance(TestInstance.Lifecycle.PER_METHOD)
+@Execution(ExecutionMode.SAME_THREAD)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class PaymentServiceIntegrationTest @Autowired constructor(
     private val service: PaymentService,
     private val repository: PaymentRepository,
@@ -40,8 +52,13 @@ class PaymentServiceIntegrationTest @Autowired constructor(
         jdbc.execute("TRUNCATE payments")
     }
 
+    @AfterEach
+    fun cleanup() {
+        jdbc.execute("TRUNCATE payments")
+    }
+
     @Test
-    fun `jpa transition and jdbc projection use the flyway schema`() {
+    fun `jpa transition completes a pending payment`() {
         val accountId = UUID.randomUUID()
         val paymentId = UUID.randomUUID()
         repository.saveAndFlush(Payment(paymentId, accountId, 250, "PENDING", Instant.parse("2026-07-22T10:00:00Z")))
@@ -49,6 +66,14 @@ class PaymentServiceIntegrationTest @Autowired constructor(
         service.complete(paymentId)
 
         assertEquals("COMPLETED", repository.findById(paymentId).orElseThrow().status)
+    }
+
+    @Test
+    fun `jdbc projection aggregates completed payments by day`() {
+        val accountId = UUID.randomUUID()
+        val paymentId = UUID.randomUUID()
+        repository.saveAndFlush(Payment(paymentId, accountId, 250, "COMPLETED", Instant.parse("2026-07-22T10:00:00Z")))
+
         assertEquals(listOf(DailyTotal("2026-07-22", 250)), service.dailyTotals(accountId))
     }
 }

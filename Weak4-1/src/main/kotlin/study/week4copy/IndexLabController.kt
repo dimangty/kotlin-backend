@@ -1,3 +1,5 @@
+// Открывает HTTP API для экспериментов с индексами PostgreSQL.
+// Компонент относится к учебному модулю недели 4 и раскрывает его основной пример.
 package study.week4copy
 
 import jakarta.validation.Valid

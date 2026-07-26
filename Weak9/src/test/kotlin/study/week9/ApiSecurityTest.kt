@@ -1,4 +1,12 @@
+// Проверяет аутентификацию, обновление токенов и разграничение доступа.
+// Тест относится к учебному модулю недели 9 и фиксирует ожидаемое поведение кода.
 package study.week9
+
+import org.junit.jupiter.api.parallel.Execution
+import org.junit.jupiter.api.parallel.ExecutionMode
+import org.springframework.test.annotation.DirtiesContext
+
+import org.junit.jupiter.api.TestInstance
 
 import tools.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -10,28 +18,35 @@ import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
+import java.util.UUID
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@TestInstance(TestInstance.Lifecycle.PER_METHOD)
+@Execution(ExecutionMode.SAME_THREAD)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class ApiSecurityTest @Autowired constructor(
     private val mvc: MockMvc,
     private val json: ObjectMapper,
 ) {
     @Test
-    fun `account is visible only to its owner`() {
+    fun `account endpoint rejects unauthenticated request`() {
+        mvc.get("/accounts/${UUID.randomUUID()}").andExpect { status { isUnauthorized() } }
+    }
+
+    @Test
+    fun `account endpoint rejects another account owner`() {
         val owner = registerAndLogin("owner-${System.nanoTime()}@example.test")
         val stranger = registerAndLogin("stranger-${System.nanoTime()}@example.test")
-
-        val account = mvc.post("/accounts") {
-            header("Authorization", "Bearer ${owner.accessToken}")
-            contentType = MediaType.APPLICATION_JSON
-            content = """{"balanceMinor":1000}"""
-        }.andExpect { status { isCreated() } }.andReturn().response.contentAsString
-        val accountId = json.readTree(account)["id"].asString()
-
-        mvc.get("/accounts/$accountId").andExpect { status { isUnauthorized() } }
+        val accountId = createAccount(owner)
         mvc.get("/accounts/$accountId") { header("Authorization", "Bearer ${stranger.accessToken}") }
             .andExpect { status { isForbidden() } }
+    }
+
+    @Test
+    fun `account endpoint returns account to its owner`() {
+        val owner = registerAndLogin("owner-${System.nanoTime()}@example.test")
+        val accountId = createAccount(owner)
         mvc.get("/accounts/$accountId") { header("Authorization", "Bearer ${owner.accessToken}") }
             .andExpect { status { isOk() }; jsonPath("$.balanceMinor") { value(1000) } }
     }
@@ -59,5 +74,14 @@ class ApiSecurityTest @Autowired constructor(
             content = body
         }.andExpect { status { isOk() } }.andReturn().response.contentAsString
         return json.readValue(response, Tokens::class.java)
+    }
+
+    private fun createAccount(owner: Tokens): String {
+        val body = mvc.post("/accounts") {
+            header("Authorization", "Bearer ${owner.accessToken}")
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"balanceMinor":1000}"""
+        }.andExpect { status { isCreated() } }.andReturn().response.contentAsString
+        return json.readTree(body)["id"].asString()
     }
 }

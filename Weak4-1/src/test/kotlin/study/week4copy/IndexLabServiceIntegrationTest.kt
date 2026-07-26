@@ -1,7 +1,16 @@
+// Интеграционно проверяет генерацию данных и анализ индексов.
+// Тест относится к учебному модулю недели 4 и фиксирует ожидаемое поведение кода.
 package study.week4copy
+
+import org.junit.jupiter.api.parallel.Execution
+import org.junit.jupiter.api.parallel.ExecutionMode
+import org.springframework.test.annotation.DirtiesContext
+
+import org.junit.jupiter.api.TestInstance
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -16,6 +25,9 @@ import java.util.UUID
 
 @SpringBootTest
 @Testcontainers
+@TestInstance(TestInstance.Lifecycle.PER_METHOD)
+@Execution(ExecutionMode.SAME_THREAD)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class IndexLabServiceIntegrationTest @Autowired constructor(
     private val service: IndexLabService,
     private val jdbc: JdbcTemplate,
@@ -39,8 +51,13 @@ class IndexLabServiceIntegrationTest @Autowired constructor(
         jdbc.execute("TRUNCATE events RESTART IDENTITY")
     }
 
+    @AfterEach
+    fun cleanup() {
+        jdbc.execute("TRUNCATE events RESTART IDENTITY")
+    }
+
     @Test
-    fun `uuid lookup uses btree and lab reports relation sizes`() {
+    fun `uuid lookup uses btree`() {
         assertEquals(5_000, service.generate(GenerateEventsRequest(5_000)))
         val publicId = jdbc.queryForObject("SELECT public_id FROM events WHERE id = 2500", UUID::class.java)!!
 
@@ -49,7 +66,11 @@ class IndexLabServiceIntegrationTest @Autowired constructor(
         val plan = service.explainUuidLookup(publicId)
         assertTrue(plan.contains("Index Scan"), plan)
         assertTrue(plan.contains("events_public_id_key"), plan)
+    }
 
+    @Test
+    fun `lab reports generated relation sizes and status distribution`() {
+        assertEquals(5_000, service.generate(GenerateEventsRequest(5_000)))
         val sizes = service.sizes()
         assertTrue(sizes.heapBytes > 0)
         assertTrue(sizes.indexesBytes > 0)

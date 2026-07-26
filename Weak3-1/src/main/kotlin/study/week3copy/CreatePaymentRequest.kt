@@ -1,3 +1,5 @@
+// Описывает запрос на создание платежа.
+// Компонент относится к учебному модулю недели 3 и раскрывает его основной пример.
 package study.week3copy
 
 import jakarta.validation.constraints.Positive

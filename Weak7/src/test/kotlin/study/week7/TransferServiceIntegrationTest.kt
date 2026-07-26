@@ -1,8 +1,18 @@
+// Интеграционно проверяет переводы, блокировки и идемпотентность.
+// Тест относится к учебному модулю недели 7 и фиксирует ожидаемое поведение кода.
 package study.week7
 
+import org.junit.jupiter.api.parallel.Execution
+import org.junit.jupiter.api.parallel.ExecutionMode
+import org.springframework.test.annotation.DirtiesContext
+
+import org.junit.jupiter.api.TestInstance
+
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.assertThrows
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -14,11 +24,15 @@ import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.postgresql.PostgreSQLContainer
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 @SpringBootTest
 @Testcontainers
+@TestInstance(TestInstance.Lifecycle.PER_METHOD)
+@Execution(ExecutionMode.SAME_THREAD)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class TransferServiceIntegrationTest @Autowired constructor(
     private val service: TransferService,
     private val jdbc: JdbcTemplate,
@@ -50,6 +64,11 @@ class TransferServiceIntegrationTest @Autowired constructor(
         )
     }
 
+    @AfterEach
+    fun cleanup() {
+        jdbc.execute("TRUNCATE ledger_entries, transfers, accounts")
+    }
+
     @Test
     fun `concurrent retries create one transfer`() {
         val start = CountDownLatch(1)
@@ -71,7 +90,7 @@ class TransferServiceIntegrationTest @Autowired constructor(
             assertEquals(900, balance(fromId))
             assertEquals(1100, balance(toId))
         } finally {
-            pool.shutdownNow()
+            shutdown(pool)
         }
     }
 
@@ -108,8 +127,13 @@ class TransferServiceIntegrationTest @Autowired constructor(
             assertEquals(2000, balance(fromId) + balance(toId))
             assertEquals(0, jdbc.queryForObject("SELECT sum(amount_minor) FROM ledger_entries", Long::class.java)!!)
         } finally {
-            pool.shutdownNow()
+            shutdown(pool)
         }
+    }
+
+    private fun shutdown(pool: ExecutorService) {
+        pool.shutdownNow()
+        assertTrue(pool.awaitTermination(30, TimeUnit.SECONDS), "Рабочие потоки теста не завершились")
     }
 
     private fun balance(id: UUID): Long =

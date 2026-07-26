@@ -1,3 +1,5 @@
+// Объявляет контракт хранилища заметок.
+// Компонент относится к учебному модулю недели 2 и раскрывает его основной пример.
 package study.week2
 
 import org.springframework.web.bind.annotation.*

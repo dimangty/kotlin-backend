@@ -1,3 +1,5 @@
+// Демонстрирует базовую HTTP-семантику на echo-эндпоинтах.
+// Компонент относится к учебному модулю недели 1 и раскрывает его основной пример.
 package study.week1
 
 import org.springframework.http.CacheControl

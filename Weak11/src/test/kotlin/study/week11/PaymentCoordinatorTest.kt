@@ -1,4 +1,8 @@
+// Проверяет идемпотентность и переходы состояний координатора платежей.
+// Тест относится к учебному модулю недели 11 и фиксирует ожидаемое поведение кода.
 package study.week11
+
+import org.junit.jupiter.api.TestInstance
 
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -12,6 +16,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
+@TestInstance(TestInstance.Lifecycle.PER_METHOD)
 class PaymentCoordinatorTest {
     @Test
     fun `retry returns one completed payment`() = runTest {

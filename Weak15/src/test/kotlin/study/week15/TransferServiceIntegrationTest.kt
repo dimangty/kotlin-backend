@@ -1,10 +1,16 @@
+// Интеграционно проверяет переводы, блокировки и идемпотентность.
+// Тест относится к учебному модулю недели 15 и фиксирует ожидаемое поведение кода.
 package study.week15
+
+import org.junit.jupiter.api.parallel.Execution
+import org.junit.jupiter.api.parallel.ExecutionMode
 
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import org.flywaydb.core.Flyway
-import org.junit.jupiter.api.AfterAll
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
@@ -14,11 +20,13 @@ import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.postgresql.PostgreSQLContainer
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 @Testcontainers
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@TestInstance(TestInstance.Lifecycle.PER_METHOD)
+@Execution(ExecutionMode.SAME_THREAD)
 class TransferServiceIntegrationTest {
     companion object {
         private val fromId = UUID.fromString("00000000-0000-0000-0000-000000000001")
@@ -58,8 +66,13 @@ class TransferServiceIntegrationTest {
         }
     }
 
-    @AfterAll
-    fun closePool() {
+    @AfterEach
+    fun cleanup() {
+        dataSource.connection.use { connection ->
+            connection.createStatement().use { statement ->
+                statement.execute("TRUNCATE ledger_entries, transfers, accounts")
+            }
+        }
         dataSource.close()
     }
 
@@ -84,7 +97,7 @@ class TransferServiceIntegrationTest {
             assertEquals(0, scalar("SELECT sum(amount_minor) FROM ledger_entries"))
             assertEquals(2000, scalar("SELECT sum(balance_minor) FROM accounts"))
         } finally {
-            pool.shutdownNow()
+            shutdown(pool)
         }
     }
 
@@ -104,5 +117,10 @@ class TransferServiceIntegrationTest {
                 rows.getLong(1)
             }
         }
+    }
+
+    private fun shutdown(pool: ExecutorService) {
+        pool.shutdownNow()
+        assertTrue(pool.awaitTermination(30, TimeUnit.SECONDS), "Рабочие потоки теста не завершились")
     }
 }

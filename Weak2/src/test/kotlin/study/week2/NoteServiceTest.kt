@@ -1,10 +1,15 @@
+// Проверяет бизнес-правила сервиса заметок изолированно.
+// Тест относится к учебному модулю недели 2 и фиксирует ожидаемое поведение кода.
 package study.week2
+
+import org.junit.jupiter.api.TestInstance
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import java.util.UUID
 
+@TestInstance(TestInstance.Lifecycle.PER_METHOD)
 class NoteServiceTest {
     private val service = NoteService(InMemoryNoteRepository())
 

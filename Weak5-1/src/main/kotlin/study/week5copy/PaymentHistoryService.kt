@@ -1,3 +1,5 @@
+// Исследует влияние индексов на запросы к истории платежей.
+// Компонент относится к учебному модулю недели 5 и раскрывает его основной пример.
 package study.week5copy
 
 import org.springframework.jdbc.core.JdbcTemplate

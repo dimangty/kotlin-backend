@@ -1,4 +1,12 @@
+// Проверяет корреляцию запросов и очистку диагностического контекста.
+// Тест относится к учебному модулю недели 12 и фиксирует ожидаемое поведение кода.
 package study.week12
+
+import org.junit.jupiter.api.parallel.Execution
+import org.junit.jupiter.api.parallel.ExecutionMode
+import org.springframework.test.annotation.DirtiesContext
+
+import org.junit.jupiter.api.TestInstance
 
 import io.micrometer.core.instrument.MeterRegistry
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -12,6 +20,9 @@ import org.springframework.test.web.servlet.get
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@TestInstance(TestInstance.Lifecycle.PER_METHOD)
+@Execution(ExecutionMode.SAME_THREAD)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class RequestContextFilterTest @Autowired constructor(
     private val mvc: MockMvc,
     private val registry: MeterRegistry,
@@ -29,14 +40,20 @@ class RequestContextFilterTest @Autowired constructor(
     }
 
     @Test
-    fun `unsafe client id is replaced and request is measured`() {
-        val before = registry.find("study.http.requests").timer()?.count() ?: 0L
-
+    fun `unsafe client id is replaced`() {
         val response = mvc.get("/work?millis=0") {
             header("X-Request-Id", "unsafe id with spaces")
         }.andExpect { status { isOk() } }.andReturn().response
 
         assertNotEquals("unsafe id with spaces", response.getHeader("X-Request-Id"))
+    }
+
+    @Test
+    fun `completed request increments request metric`() {
+        val before = registry.find("study.http.requests").timer()?.count() ?: 0L
+
+        mvc.get("/work?millis=0").andExpect { status { isOk() } }
+
         assertEquals(before + 1, registry.find("study.http.requests").timer()?.count())
     }
 }

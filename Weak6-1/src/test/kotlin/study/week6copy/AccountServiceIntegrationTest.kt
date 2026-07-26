@@ -1,7 +1,16 @@
+// Интеграционно проверяет конкурентные списания и целостность баланса.
+// Тест относится к учебному модулю недели 6 и фиксирует ожидаемое поведение кода.
 package study.week6copy
+
+import org.junit.jupiter.api.parallel.Execution
+import org.junit.jupiter.api.parallel.ExecutionMode
+import org.springframework.test.annotation.DirtiesContext
+
+import org.junit.jupiter.api.TestInstance
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -13,11 +22,15 @@ import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.postgresql.PostgreSQLContainer
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 @SpringBootTest
 @Testcontainers
+@TestInstance(TestInstance.Lifecycle.PER_METHOD)
+@Execution(ExecutionMode.SAME_THREAD)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class AccountServiceIntegrationTest @Autowired constructor(
     private val accounts: AccountService,
     private val serializableDebits: SerializableDebitService,
@@ -39,6 +52,11 @@ class AccountServiceIntegrationTest @Autowired constructor(
 
     @BeforeEach
     fun reset() {
+        jdbc.execute("TRUNCATE accounts")
+    }
+
+    @AfterEach
+    fun cleanup() {
         jdbc.execute("TRUNCATE accounts")
     }
 
@@ -68,7 +86,7 @@ class AccountServiceIntegrationTest @Autowired constructor(
             assertEquals(1, futures.count { it.get(15, TimeUnit.SECONDS) })
             assertEquals(400, accounts.balance(account.id).balanceMinor)
         } finally {
-            pool.shutdownNow()
+            shutdown(pool)
         }
     }
 
@@ -96,7 +114,12 @@ class AccountServiceIntegrationTest @Autowired constructor(
             start.countDown()
             futures.map { it.get(30, TimeUnit.SECONDS) }
         } finally {
-            pool.shutdownNow()
+            shutdown(pool)
         }
+    }
+
+    private fun shutdown(pool: ExecutorService) {
+        pool.shutdownNow()
+        assertTrue(pool.awaitTermination(30, TimeUnit.SECONDS), "Рабочие потоки теста не завершились")
     }
 }

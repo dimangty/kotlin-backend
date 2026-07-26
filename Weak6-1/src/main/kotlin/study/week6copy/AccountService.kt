@@ -1,3 +1,5 @@
+// Реализует операции со счетами и безопасное изменение баланса.
+// Компонент относится к учебному модулю недели 6 и раскрывает его основной пример.
 package study.week6copy
 
 import org.springframework.jdbc.core.JdbcTemplate

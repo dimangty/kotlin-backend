@@ -1,3 +1,5 @@
+// Связывает HTTP API финансовых операций с прикладным сервисом.
+// Компонент относится к учебному модулю недели 16 и раскрывает его основной пример.
 package study.week16
 
 import org.springframework.http.HttpStatus

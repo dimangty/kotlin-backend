@@ -1,3 +1,5 @@
+// Реализует основные сценарии учебного финансового приложения.
+// Компонент относится к учебному модулю недели 3 и раскрывает его основной пример.
 package study.week3copy
 
 import org.springframework.jdbc.core.JdbcTemplate

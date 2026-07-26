@@ -1,8 +1,18 @@
+// Интеграционно проверяет финансовые сценарии и ограничения базы данных.
+// Тест относится к учебному модулю недели 16 и фиксирует ожидаемое поведение кода.
 package study.week16
 
+import org.junit.jupiter.api.parallel.Execution
+import org.junit.jupiter.api.parallel.ExecutionMode
+import org.springframework.test.annotation.DirtiesContext
+
+import org.junit.jupiter.api.TestInstance
+
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.assertThrows
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -14,11 +24,15 @@ import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.postgresql.PostgreSQLContainer
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 @SpringBootTest
 @Testcontainers
+@TestInstance(TestInstance.Lifecycle.PER_METHOD)
+@Execution(ExecutionMode.SAME_THREAD)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class FintechServiceIntegrationTest @Autowired constructor(
     private val service: FintechService,
     private val jdbc: JdbcTemplate,
@@ -57,6 +71,11 @@ class FintechServiceIntegrationTest @Autowired constructor(
         )
     }
 
+    @AfterEach
+    fun cleanup() {
+        jdbc.execute("TRUNCATE audit_events, ledger_entries, transfers, accounts")
+    }
+
     @Test
     fun `concurrent retries preserve every invariant`() {
         val start = CountDownLatch(1)
@@ -79,7 +98,7 @@ class FintechServiceIntegrationTest @Autowired constructor(
             assertEquals(0L, jdbc.queryForObject("SELECT sum(amount_minor) FROM ledger_entries", Long::class.java)!!)
             assertEquals(2000L, jdbc.queryForObject("SELECT sum(balance_minor) FROM accounts", Long::class.java)!!)
         } finally {
-            pool.shutdownNow()
+            shutdown(pool)
         }
     }
 
@@ -118,7 +137,7 @@ class FintechServiceIntegrationTest @Autowired constructor(
             assertEquals(0L, jdbc.queryForObject("SELECT sum(amount_minor) FROM ledger_entries", Long::class.java)!!)
             assertEquals(2000L, jdbc.queryForObject("SELECT sum(balance_minor) FROM accounts", Long::class.java)!!)
         } finally {
-            pool.shutdownNow()
+            shutdown(pool)
         }
     }
 
@@ -138,4 +157,9 @@ class FintechServiceIntegrationTest @Autowired constructor(
     }
 
     private fun count(table: String): Int = jdbc.queryForObject("SELECT count(*) FROM $table", Int::class.java)!!
+
+    private fun shutdown(pool: ExecutorService) {
+        pool.shutdownNow()
+        assertTrue(pool.awaitTermination(30, TimeUnit.SECONDS), "Рабочие потоки теста не завершились")
+    }
 }

@@ -1,3 +1,5 @@
+// Содержит точку запуска и основную конфигурацию приложения.
+// Компонент относится к учебному модулю недели 5 и раскрывает его основной пример.
 package study.week5copy
 
 import org.springframework.boot.autoconfigure.SpringBootApplication

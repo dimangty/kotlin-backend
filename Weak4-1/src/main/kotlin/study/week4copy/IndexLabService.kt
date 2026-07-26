@@ -1,3 +1,5 @@
+// Выполняет генерацию данных и анализ планов запросов PostgreSQL.
+// Компонент относится к учебному модулю недели 4 и раскрывает его основной пример.
 package study.week4copy
 
 import org.springframework.jdbc.core.JdbcTemplate

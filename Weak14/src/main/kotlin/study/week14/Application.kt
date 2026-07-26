@@ -1,3 +1,5 @@
+// Содержит точку запуска и основную конфигурацию приложения.
+// Компонент относится к учебному модулю недели 14 и раскрывает его основной пример.
 package study.week14
 
 import io.ktor.http.*
@@ -35,4 +37,3 @@ fun Application.module() {
 }
 
 fun main(args: Array<String>) { EngineMain.main(args) }
-

@@ -1,6 +1,15 @@
+// Проверяет инварианты схемы PostgreSQL на уровне базы данных.
+// Тест относится к учебному модулю недели 10 и фиксирует ожидаемое поведение кода.
 package study.week10
 
+import org.junit.jupiter.api.parallel.Execution
+import org.junit.jupiter.api.parallel.ExecutionMode
+
+import org.junit.jupiter.api.TestInstance
+
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -10,10 +19,13 @@ import org.testcontainers.postgresql.PostgreSQLContainer
 import java.sql.DriverManager
 import java.sql.SQLException
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 @Testcontainers
+@TestInstance(TestInstance.Lifecycle.PER_METHOD)
+@Execution(ExecutionMode.SAME_THREAD)
 class PostgresInvariantTest {
     companion object {
         @Container @JvmStatic val postgres = PostgreSQLContainer("postgres:17-alpine")
@@ -25,6 +37,15 @@ class PostgresInvariantTest {
         c.createStatement().execute("DROP TABLE IF EXISTS requests; DROP TABLE IF EXISTS accounts")
         c.createStatement().execute("CREATE TABLE accounts(id int PRIMARY KEY, balance bigint NOT NULL CHECK(balance >= 0)); INSERT INTO accounts VALUES (1,1000),(2,1000)")
         c.createStatement().execute("CREATE TABLE requests(key text PRIMARY KEY)")
+        }
+    }
+
+    @AfterEach
+    fun cleanup() {
+        connection().use { connection ->
+            connection.createStatement().use { statement ->
+                statement.execute("DROP TABLE IF EXISTS requests; DROP TABLE IF EXISTS accounts")
+            }
         }
     }
 
@@ -58,8 +79,13 @@ class PostgresInvariantTest {
                 }
             }
         } finally {
-            pool.shutdownNow()
+            shutdown(pool)
         }
+    }
+
+    private fun shutdown(pool: ExecutorService) {
+        pool.shutdownNow()
+        assertTrue(pool.awaitTermination(30, TimeUnit.SECONDS), "Рабочие потоки теста не завершились")
     }
 
     private fun connection() = DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password)

@@ -1,3 +1,5 @@
+// Обрабатывает HTTP-запросы на денежные переводы.
+// Компонент относится к учебному модулю недели 7 и раскрывает его основной пример.
 package study.week7
 
 import org.springframework.http.HttpStatus
