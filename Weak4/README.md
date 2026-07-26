@@ -2,6 +2,8 @@
 
 **Результат недели:** индекс перестаёт быть аннотацией и становится структурой данных с понятной ценой. `lab.sql` создаёт миллион строк и сравнивает поиск по bigint, UUID, timestamp и низкоселективному status. `write-overhead.sql` показывает, сколько за это платят INSERT и UPDATE.
 
+Теория недели: [THEORY-SHORT.md](THEORY-SHORT.md) (шпаргалка) и [THEORY-DETAILED.md](THEORY-DETAILED.md) (подробный разбор).
+
 ## Запуск
 
 ```bash

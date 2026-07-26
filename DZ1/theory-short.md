@@ -8,7 +8,7 @@
 | VS Code | Лёгкий редактор, Kotlin через extension (LSP), удобен для правок и не-JVM частей |
 | OpenCode | CLI/агентный редактор, работает поверх проекта в терминале |
 
-Ставить JDK 21 (LTS) — например Temurin/Corretto. Проверка: `java -version`, `javac -version`.
+Ставить **JDK 17 (LTS)** — например Temurin/Corretto: весь трек (Gradle toolchain всех недель) закреплён на 17. Проверка: `java -version`, `javac -version`.
 
 ## 2. Создание проекта
 
