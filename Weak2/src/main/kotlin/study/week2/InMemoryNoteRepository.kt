@@ -10,9 +10,12 @@ import java.util.concurrent.ConcurrentHashMap
 @Repository
 class InMemoryNoteRepository : NoteRepository {
     private val notes = ConcurrentHashMap<UUID, Note>()
+    // Возвращает все заметки, упорядоченные по идентификатору.
     override fun all(): List<Note> = notes.values.sortedBy { it.id }
+    // Ищет заметку по идентификатору.
     override fun find(id: UUID): Note? = notes[id]
 
+    // Сохраняет заметку с проверкой ожидаемой версии.
     override fun save(note: Note, expectedVersion: Long?): Note {
         // compute атомарен для одного ключа: проверка version и запись не разделяются гонкой.
         return notes.compute(note.id) { _, current ->
@@ -24,5 +27,6 @@ class InMemoryNoteRepository : NoteRepository {
         }!!
     }
 
+    // Удаляет заметку и сообщает, существовала ли она.
     override fun delete(id: UUID): Boolean = notes.remove(id) != null
 }

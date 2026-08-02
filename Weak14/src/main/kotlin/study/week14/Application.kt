@@ -18,6 +18,7 @@ import kotlinx.serialization.Serializable
 @Serializable data class Echo(val message: String)
 class InvalidRequest(message: String) : RuntimeException(message)
 
+// Настраивает маршрутизацию и аутентификацию Ktor-приложения.
 fun Application.module() {
     install(ContentNegotiation) { json() }
     install(StatusPages) {
@@ -36,4 +37,5 @@ fun Application.module() {
     }
 }
 
+// Запускает сервер Ktor с переданными аргументами.
 fun main(args: Array<String>) { EngineMain.main(args) }

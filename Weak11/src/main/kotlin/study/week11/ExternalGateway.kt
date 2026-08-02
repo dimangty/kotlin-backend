@@ -3,4 +3,7 @@
 package study.week11
 
 
-interface ExternalGateway { suspend fun charge(key: String, amountMinor: Long): String }
+interface ExternalGateway {
+    // Выполняет идемпотентное списание во внешней платёжной системе.
+    suspend fun charge(key: String, amountMinor: Long): String
+}

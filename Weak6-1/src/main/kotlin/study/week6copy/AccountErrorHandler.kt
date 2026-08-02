@@ -11,5 +11,6 @@ import org.springframework.web.bind.annotation.RestControllerAdvice
 class AccountErrorHandler {
     @ExceptionHandler(InsufficientFundsException::class)
     @ResponseStatus(HttpStatus.CONFLICT)
+    // Преобразует ошибку недостатка средств в ответ API.
     fun insufficientFunds(error: InsufficientFundsException) = ApiError("INSUFFICIENT_FUNDS", error.message!!)
 }

@@ -17,6 +17,7 @@ class AuthService(private val encoder: PasswordEncoder) {
     private val access = ConcurrentHashMap<String, TokenGrant>()
     private val refresh = ConcurrentHashMap<String, TokenGrant>()
 
+    // Регистрирует пользователя с нормализованным email и хешированным паролем.
     fun register(credentials: Credentials): User {
         val passwordHash = requireNotNull(encoder.encode(credentials.password)) {
             "password encoder returned no hash"
@@ -27,6 +28,7 @@ class AuthService(private val encoder: PasswordEncoder) {
         }
         return user
     }
+    // Проверяет учётные данные и выдаёт токены пользователя.
     fun login(credentials: Credentials): Tokens {
         val user = users[credentials.email.lowercase()]
         if (user == null || !encoder.matches(credentials.password, user.passwordHash)) {
@@ -34,6 +36,7 @@ class AuthService(private val encoder: PasswordEncoder) {
         }
         return issue(user.id)
     }
+    // Одноразово заменяет refresh-токен новой парой токенов.
     fun rotate(oldRefresh: String): Tokens {
         // remove делает refresh одноразовым: replay старого token больше не пройдет.
         val grant = refresh.remove(oldRefresh)
@@ -42,6 +45,7 @@ class AuthService(private val encoder: PasswordEncoder) {
         }
         return issue(grant.userId)
     }
+    // Определяет пользователя по действующему access-токену.
     fun userForAccess(token: String?): UUID? {
         val value = token ?: return null
         val grant = access[value] ?: return null
@@ -51,6 +55,7 @@ class AuthService(private val encoder: PasswordEncoder) {
         }
         return grant.userId
     }
+    // Выпускает и сохраняет новую пару access- и refresh-токенов.
     private fun issue(userId: UUID): Tokens {
         val pair = Tokens(UUID.randomUUID().toString(), UUID.randomUUID().toString())
         val now = Instant.now()

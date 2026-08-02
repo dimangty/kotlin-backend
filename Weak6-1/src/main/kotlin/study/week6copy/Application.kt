@@ -8,6 +8,7 @@ import org.springframework.boot.runApplication
 @SpringBootApplication
 class Application
 
+// Запускает Spring Boot-приложение конкурентных операций со счетами.
 fun main(args: Array<String>) {
     runApplication<Application>(*args)
 }

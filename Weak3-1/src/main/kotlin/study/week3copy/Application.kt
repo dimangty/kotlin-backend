@@ -10,6 +10,7 @@ import org.springframework.boot.runApplication
 @SpringBootApplication
 class Application
 
+// Запускает Spring Boot-приложение учебного финансового сервиса.
 fun main(args: Array<String>) {
     runApplication<Application>(*args)
 }

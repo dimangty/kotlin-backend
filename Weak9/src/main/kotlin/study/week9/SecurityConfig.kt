@@ -14,8 +14,10 @@ import org.springframework.security.web.authentication.www.BasicAuthenticationFi
 
 @Configuration
 class SecurityConfig {
+    // Создаёт кодировщик паролей на основе BCrypt.
     @Bean fun passwordEncoder(): PasswordEncoder = BCryptPasswordEncoder(12)
     @Bean
+    // Настраивает правила доступа и фильтры безопасности HTTP.
     fun chain(http: HttpSecurity, tokenFilter: AccessTokenFilter): SecurityFilterChain = http
         .csrf { it.disable() }
         .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }

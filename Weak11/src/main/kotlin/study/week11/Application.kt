@@ -4,4 +4,5 @@ package study.week11
 
 import kotlinx.coroutines.runBlocking
 
+// Запускает демонстрационный сценарий обработки платежа.
 fun main() = runBlocking { println(PaymentCoordinator(MemoryRepository(), DemoGateway()).pay("demo", 100)) }

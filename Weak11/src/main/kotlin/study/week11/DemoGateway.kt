@@ -7,6 +7,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 class DemoGateway : ExternalGateway {
     private val results = ConcurrentHashMap<String, String>()
+    // Имитирует успешное списание во внешнем платёжном шлюзе.
     override suspend fun charge(key: String, amountMinor: Long): String {
         delay(50)
         // Внешний сервис тоже принимает idempotency key: retry не создаст второй charge.

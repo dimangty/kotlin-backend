@@ -6,6 +6,8 @@ import java.util.concurrent.ConcurrentHashMap
 
 class MemoryRepository : PaymentRepository {
     private val values = ConcurrentHashMap<String, Payment>()
+    // Ищет платёж в памяти по ключу идемпотентности.
     override fun find(key: String) = values[key]
+    // Сохраняет текущее состояние платежа в памяти.
     override fun save(payment: Payment): Payment { values[payment.idempotencyKey] = payment; return payment }
 }

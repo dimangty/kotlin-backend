@@ -11,6 +11,7 @@ import java.util.concurrent.ConcurrentHashMap
 class PaymentCoordinator(private val repository: PaymentRepository, private val gateway: ExternalGateway) {
     private val operationLocks = ConcurrentHashMap<String, Mutex>()
 
+    // Координирует идемпотентное списание и переходы состояния платежа.
     suspend fun pay(key: String, amountMinor: Long): Payment {
         require(key.isNotBlank()) { "idempotency key must not be blank" }
         require(amountMinor > 0) { "amountMinor must be positive" }

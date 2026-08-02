@@ -24,6 +24,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.flywaydb.core.Flyway
 
+// Создаёт зависимости и настраивает HTTP-слой Ktor-приложения.
 fun Application.module() {
     val dataSource = dataSourceFromEnvironment()
     Flyway.configure().dataSource(dataSource).load().migrate()
@@ -31,6 +32,7 @@ fun Application.module() {
     configureHttp(TransferService(dataSource))
 }
 
+// Регистрирует маршруты и обработку ошибок переводов.
 fun Application.configureHttp(service: TransferService) {
     install(ContentNegotiation) { json() }
     install(StatusPages) {
@@ -54,6 +56,7 @@ fun Application.configureHttp(service: TransferService) {
     }
 }
 
+// Создаёт пул соединений из переменных окружения.
 private fun dataSourceFromEnvironment(): HikariDataSource = HikariDataSource(
     HikariConfig().apply {
         jdbcUrl = System.getenv("DB_URL") ?: "jdbc:postgresql://localhost:5432/ktor"
@@ -64,6 +67,7 @@ private fun dataSourceFromEnvironment(): HikariDataSource = HikariDataSource(
     },
 )
 
+// Запускает Ktor-приложение переводов с переданными аргументами.
 fun main(args: Array<String>) {
     EngineMain.main(args)
 }

@@ -14,6 +14,7 @@ import java.util.UUID
 
 @Component
 class RequestCorrelationFilter(private val registry: MeterRegistry) : OncePerRequestFilter() {
+    // Добавляет идентификаторы запроса в MDC, ответ и метрики.
     override fun doFilterInternal(request: HttpServletRequest, response: HttpServletResponse, chain: FilterChain) {
         val requestId = safeId(request.getHeader("X-Request-Id"))
         val operationId = safeId(request.getHeader("X-Operation-Id"))
@@ -31,6 +32,7 @@ class RequestCorrelationFilter(private val registry: MeterRegistry) : OncePerReq
         }
     }
 
+    // Возвращает безопасный клиентский идентификатор или создаёт новый.
     private fun safeId(candidate: String?): String =
         candidate?.takeIf { it.length <= 128 && it.matches(SAFE_ID) } ?: UUID.randomUUID().toString()
 

@@ -14,6 +14,7 @@ class NoteServiceTest {
     private val service = NoteService(InMemoryNoteRepository())
 
     @Test
+    // Проверяет отклонение обновления с устаревшей версией заметки.
     fun `stale update is rejected`() {
         val created = service.create(CreateNoteRequest("title"))
         service.update(created.id, UpdateNoteRequest("new", version = created.version))
@@ -24,6 +25,7 @@ class NoteServiceTest {
     }
 
     @Test
+    // Проверяет ошибку при обновлении несуществующей заметки.
     fun `updating a missing note reports not found`() {
         assertThrows(NoteNotFound::class.java) {
             service.update(UUID.randomUUID(), UpdateNoteRequest("missing", version = 0))

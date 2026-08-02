@@ -8,6 +8,7 @@ import org.springframework.boot.runApplication
 @SpringBootApplication
 class Application
 
+// Запускает Spring Boot-приложение лаборатории индексов.
 fun main(args: Array<String>) {
     runApplication<Application>(*args)
 }

@@ -18,19 +18,24 @@ import java.util.UUID
 class FintechController(private val service: FintechService) {
     @PostMapping("/users")
     @ResponseStatus(HttpStatus.CREATED)
+    // Обрабатывает HTTP-запрос на создание пользователя.
     fun createUser(@Valid @RequestBody request: CreateUserRequest) = service.createUser(request)
 
     @PostMapping("/accounts")
     @ResponseStatus(HttpStatus.CREATED)
+    // Обрабатывает HTTP-запрос на открытие счёта.
     fun openAccount(@Valid @RequestBody request: OpenAccountRequest) = service.openAccount(request)
 
     @PostMapping("/payments")
     @ResponseStatus(HttpStatus.CREATED)
+    // Обрабатывает HTTP-запрос на создание платежа.
     fun createPayment(@Valid @RequestBody request: CreatePaymentRequest) = service.createPayment(request)
 
     @GetMapping("/accounts/{id}/snapshot")
+    // Возвращает снимок состояния счёта по идентификатору.
     fun accountSnapshot(@PathVariable id: UUID) = service.accountSnapshot(id)
 
     @GetMapping("/accounts/{id}/physical-tuple")
+    // Возвращает диагностические данные физической строки счёта.
     fun physicalTuple(@PathVariable id: UUID) = service.physicalTuple(id)
 }

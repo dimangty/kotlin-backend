@@ -23,11 +23,13 @@ import org.springframework.test.web.servlet.post
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class HttpControllerTest(@Autowired private val mvc: MockMvc) {
     @Test
+    // Проверяет доступность эндпоинта состояния приложения.
     fun `health is available`() {
         mvc.get("/health").andExpect { status { isOk() }; jsonPath("$.status") { value("UP") } }
     }
 
     @Test
+    // Проверяет возврат идентификатора запроса в echo-ответе.
     fun `echo returns request id`() {
         mvc.post("/echo") {
             contentType = org.springframework.http.MediaType.APPLICATION_JSON

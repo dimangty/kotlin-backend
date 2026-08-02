@@ -10,6 +10,7 @@ import java.util.UUID
 
 @Service
 class FintechService(private val jdbc: JdbcTemplate) {
+    // Создаёт счёт с заданным владельцем и начальным балансом.
     fun createAccount(command: CreateAccount): AccountView {
         require(command.currency.matches(Regex("[A-Z]{3}")))
         require(command.initialBalanceMinor >= 0)
@@ -18,12 +19,14 @@ class FintechService(private val jdbc: JdbcTemplate) {
         return AccountView(id, command.ownerId, command.currency, command.initialBalanceMinor)
     }
 
+    // Возвращает счёт по идентификатору.
     fun account(id: UUID): AccountView = jdbc.queryForObject(
         "SELECT id,owner_id,currency,balance_minor FROM accounts WHERE id=?",
         { rs, _ -> AccountView(rs.getObject("id", UUID::class.java), rs.getObject("owner_id", UUID::class.java), rs.getString("currency"), rs.getLong("balance_minor")) }, id,
     )
 
     @Transactional
+    // Выполняет аудируемый идемпотентный перевод между счетами.
     fun transfer(key: String, command: CreateTransfer, actor: String): TransferView {
         require(key.isNotBlank() && key.length <= 128) { "invalid Idempotency-Key" }
         require(actor.isNotBlank() && actor.length <= 128) { "invalid actor" }
@@ -58,6 +61,7 @@ class FintechService(private val jdbc: JdbcTemplate) {
         return TransferView(id, "COMPLETED")
     }
 
+    // Ищет ранее созданный перевод и проверяет совпадение его параметров.
     private fun existing(key: String, command: CreateTransfer): TransferView? {
         val stored = jdbc.query(
             """
@@ -82,11 +86,13 @@ class FintechService(private val jdbc: JdbcTemplate) {
         return stored.view
     }
 
+    // Возвращает сохранённый перевод по идентификатору.
     fun transfer(id: UUID): TransferView = jdbc.queryForObject(
         "SELECT id,status FROM transfers WHERE id=?",
         { rs, _ -> TransferView(rs.getObject("id", UUID::class.java), rs.getString("status")) }, id,
     )
 
+    // Возвращает страницу журнала счёта по стабильному курсору.
     fun ledger(accountId: UUID, cursor: Long?, limit: Int): List<LedgerEntryView> {
         require(limit in 1..100) { "limit must be between 1 and 100" }
         require(cursor == null || cursor > 0) { "cursor must be positive" }

@@ -21,20 +21,25 @@ class AccountController(
 ) {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    // Создаёт новый счёт через HTTP API.
     fun create(@Valid @RequestBody request: CreateAccountRequest) = accounts.create(request)
 
     @GetMapping("/{id}")
+    // Возвращает баланс счёта по идентификатору.
     fun balance(@PathVariable id: UUID) = accounts.balance(id)
 
     @PostMapping("/{id}/debits/atomic")
+    // Выполняет атомарное списание со счёта.
     fun atomicDebit(@PathVariable id: UUID, @Valid @RequestBody request: DebitRequest) =
         accounts.atomicDebit(id, request.amountMinor)
 
     @PostMapping("/{id}/debits/locked")
+    // Выполняет списание с блокировкой строки счёта.
     fun lockedDebit(@PathVariable id: UUID, @Valid @RequestBody request: DebitRequest) =
         accounts.lockedDebit(id, request.amountMinor)
 
     @PostMapping("/{id}/debits/serializable")
+    // Выполняет списание в сериализуемой транзакции.
     fun serializableDebit(@PathVariable id: UUID, @Valid @RequestBody request: DebitRequest) =
         serializableDebits.debit(id, request.amountMinor)
 }

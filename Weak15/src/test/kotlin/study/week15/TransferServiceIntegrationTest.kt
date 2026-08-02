@@ -50,6 +50,7 @@ class TransferServiceIntegrationTest {
     private val service: TransferService by lazy { TransferService(dataSource) }
 
     @BeforeEach
+    // Создаёт тестовые счета и очищает связанные данные.
     fun reset() {
         Flyway.configure().dataSource(dataSource).load().migrate()
         dataSource.connection.use { connection ->
@@ -67,6 +68,7 @@ class TransferServiceIntegrationTest {
     }
 
     @AfterEach
+    // Закрывает источник данных и останавливает контейнер базы.
     fun cleanup() {
         dataSource.connection.use { connection ->
             connection.createStatement().use { statement ->
@@ -77,6 +79,7 @@ class TransferServiceIntegrationTest {
     }
 
     @Test
+    // Проверяет единственный перевод и сбалансированный журнал при повторах.
     fun `concurrent retry creates one transfer and balanced ledger`() {
         val start = CountDownLatch(1)
         val pool = Executors.newFixedThreadPool(2)
@@ -102,6 +105,7 @@ class TransferServiceIntegrationTest {
     }
 
     @Test
+    // Проверяет запрет изменения тела запроса для прежнего ключа.
     fun `same key cannot change payload`() {
         service.transfer("same-key", TransferRequest(fromId.toString(), toId.toString(), 100))
 
@@ -110,6 +114,7 @@ class TransferServiceIntegrationTest {
         }
     }
 
+    // Выполняет скалярный SQL-запрос и возвращает числовой результат.
     private fun scalar(sql: String): Long = dataSource.connection.use { connection ->
         connection.createStatement().use { statement ->
             statement.executeQuery(sql).use { rows ->
@@ -119,6 +124,7 @@ class TransferServiceIntegrationTest {
         }
     }
 
+    // Корректно завершает пул потоков теста.
     private fun shutdown(pool: ExecutorService) {
         pool.shutdownNow()
         assertTrue(pool.awaitTermination(30, TimeUnit.SECONDS), "Рабочие потоки теста не завершились")

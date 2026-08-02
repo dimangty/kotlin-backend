@@ -7,6 +7,7 @@ import java.util.UUID
 import javax.sql.DataSource
 
 class TransferService(private val dataSource: DataSource) {
+    // Выполняет идемпотентный перевод с записью двойного журнала.
     fun transfer(key: String, request: TransferRequest): TransferResult {
         require(key.isNotBlank() && key.length <= 128) { "invalid Idempotency-Key" }
         require(request.amountMinor > 0) { "amountMinor must be positive" }
@@ -79,6 +80,7 @@ class TransferService(private val dataSource: DataSource) {
         }
     }
 
+    // Ищет существующий перевод и проверяет соответствие исходному запросу.
     private fun findExisting(
         connection: Connection,
         key: String,
@@ -104,6 +106,7 @@ class TransferService(private val dataSource: DataSource) {
         }
     }
 
+    // Выполняет блок в транзакции с фиксацией или откатом результата.
     private fun <T> inTransaction(block: (Connection) -> T): T = dataSource.connection.use { connection ->
         connection.autoCommit = false
         try {

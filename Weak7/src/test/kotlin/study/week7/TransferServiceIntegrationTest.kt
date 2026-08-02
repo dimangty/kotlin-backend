@@ -47,6 +47,7 @@ class TransferServiceIntegrationTest @Autowired constructor(
 
         @DynamicPropertySource
         @JvmStatic
+        // Передаёт приложению параметры запущенной тестовой базы данных.
         fun database(registry: DynamicPropertyRegistry) {
             registry.add("spring.datasource.url", postgres::getJdbcUrl)
             registry.add("spring.datasource.username", postgres::getUsername)
@@ -55,6 +56,7 @@ class TransferServiceIntegrationTest @Autowired constructor(
     }
 
     @BeforeEach
+    // Подготавливает счета и очищает переводы перед каждым тестом.
     fun reset() {
         jdbc.execute("TRUNCATE ledger_entries, transfers, accounts")
         jdbc.update(
@@ -65,11 +67,13 @@ class TransferServiceIntegrationTest @Autowired constructor(
     }
 
     @AfterEach
+    // Останавливает контейнер базы после завершения тестов.
     fun cleanup() {
         jdbc.execute("TRUNCATE ledger_entries, transfers, accounts")
     }
 
     @Test
+    // Проверяет создание единственного перевода при конкурентных повторах.
     fun `concurrent retries create one transfer`() {
         val start = CountDownLatch(1)
         val pool = Executors.newFixedThreadPool(2)
@@ -95,6 +99,7 @@ class TransferServiceIntegrationTest @Autowired constructor(
     }
 
     @Test
+    // Проверяет запрет повторного ключа для другого содержимого запроса.
     fun `same key cannot be reused for another request`() {
         service.transfer("same-key", TransferRequest(fromId, toId, 100))
 
@@ -104,6 +109,7 @@ class TransferServiceIntegrationTest @Autowired constructor(
     }
 
     @Test
+    // Проверяет сохранение общего баланса при встречных переводах.
     fun `fifty opposing transfers preserve total balance`() {
         val start = CountDownLatch(1)
         val pool = Executors.newFixedThreadPool(10)
@@ -131,11 +137,13 @@ class TransferServiceIntegrationTest @Autowired constructor(
         }
     }
 
+    // Корректно завершает пул потоков теста.
     private fun shutdown(pool: ExecutorService) {
         pool.shutdownNow()
         assertTrue(pool.awaitTermination(30, TimeUnit.SECONDS), "Рабочие потоки теста не завершились")
     }
 
+    // Возвращает баланс тестового счёта по идентификатору.
     private fun balance(id: UUID): Long =
         jdbc.queryForObject("SELECT balance_minor FROM accounts WHERE id = ?", Long::class.java, id)!!
 }

@@ -15,9 +15,11 @@ import java.time.Instant
 @RequestMapping("/api/payments")
 class PaymentHistoryController(private val service: PaymentHistoryService) {
     @PostMapping("/generate")
+    // Запускает генерацию платёжной истории через HTTP API.
     fun generate(@Valid @RequestBody request: GeneratePaymentsRequest) = mapOf("inserted" to service.generate(request))
 
     @GetMapping("/history")
+    // Возвращает историю платежей выбранного пользователя.
     fun history(
         @RequestParam userId: Long,
         @RequestParam from: Instant,
@@ -25,14 +27,17 @@ class PaymentHistoryController(private val service: PaymentHistoryService) {
     ) = service.history(userId, from, limit)
 
     @GetMapping("/pending")
+    // Возвращает список просроченных ожидающих платежей.
     fun pending(
         @RequestParam before: Instant,
         @RequestParam(defaultValue = "50") limit: Int,
     ) = service.pendingBefore(before, limit)
 
     @GetMapping("/history/plan")
+    // Возвращает план запроса истории платежей.
     fun historyPlan(@RequestParam userId: Long, @RequestParam from: Instant) = service.explainHistory(userId, from)
 
     @GetMapping("/indexes")
+    // Возвращает сведения об индексах платёжной таблицы.
     fun indexes() = service.indexes()
 }

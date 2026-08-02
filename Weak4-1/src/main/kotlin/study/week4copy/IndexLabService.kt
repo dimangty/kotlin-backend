@@ -8,6 +8,7 @@ import java.util.UUID
 
 @Service
 class IndexLabService(private val jdbc: JdbcTemplate) {
+    // Генерирует заданное количество тестовых событий.
     fun generate(request: GenerateEventsRequest): Int {
         val inserted = jdbc.update(
             """
@@ -27,6 +28,7 @@ class IndexLabService(private val jdbc: JdbcTemplate) {
         return inserted
     }
 
+    // Находит событие по публичному UUID.
     fun findByPublicId(publicId: UUID): EventView = jdbc.queryForObject(
         """
         SELECT id, public_id, user_id, status, created_at
@@ -45,6 +47,7 @@ class IndexLabService(private val jdbc: JdbcTemplate) {
         publicId,
     )
 
+    // Возвращает план выполнения поиска события по UUID.
     fun explainUuidLookup(publicId: UUID): String = requireNotNull(
         jdbc.queryForObject(
             // FORMAT JSON удобно отдавать клиенту без парсинга текстового дерева.
@@ -60,10 +63,12 @@ class IndexLabService(private val jdbc: JdbcTemplate) {
         ),
     ) { "EXPLAIN must return a JSON plan" }
 
+    // Рассчитывает распределение событий по статусам.
     fun statusDistribution(): List<StatusCount> = jdbc.query(
         "SELECT status, count(*) AS total FROM events GROUP BY status ORDER BY status",
     ) { rs, _ -> StatusCount(rs.getString("status"), rs.getLong("total")) }
 
+    // Возвращает размеры таблицы и связанных с ней индексов.
     fun sizes(): RelationSizes = jdbc.queryForObject(
         """
         SELECT pg_relation_size('events') AS heap_bytes,

@@ -23,6 +23,7 @@ class SerializableDebitService(
     }
     private val transactionTemplate = TransactionTemplate(transactionManager, transactionDefinition)
 
+    // Выполняет списание в сериализуемой транзакции с ограниченными повторами.
     fun debit(accountId: UUID, amountMinor: Long, maxAttempts: Int = 10): AccountView {
         require(amountMinor > 0) { "amountMinor must be positive" }
         require(maxAttempts in 1..50) { "maxAttempts must be between 1 and 50" }
@@ -65,6 +66,7 @@ class SerializableDebitService(
         }
     }
 
+    // Определяет, вызвана ли ошибка конфликтом сериализации PostgreSQL.
     private fun Throwable.isSerializationFailure(): Boolean {
         var current: Throwable? = this
         while (current != null) {

@@ -9,5 +9,6 @@ import org.springframework.web.bind.annotation.*
 class TransferController(private val service: TransferService) {
     @PostMapping("/transfers")
     @ResponseStatus(HttpStatus.CREATED)
+    // Принимает HTTP-запрос на идемпотентный перевод средств.
     fun transfer(@RequestHeader("Idempotency-Key") key: String, @RequestBody request: TransferRequest) = service.transfer(key, request)
 }

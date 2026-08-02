@@ -40,6 +40,7 @@ class FintechServiceIntegrationTest @Autowired constructor(
 
         @DynamicPropertySource
         @JvmStatic
+        // Передаёт приложению параметры запущенной тестовой базы данных.
         fun database(registry: DynamicPropertyRegistry) {
             registry.add("spring.datasource.url", postgres::getJdbcUrl)
             registry.add("spring.datasource.username", postgres::getUsername)
@@ -48,16 +49,19 @@ class FintechServiceIntegrationTest @Autowired constructor(
     }
 
     @BeforeEach
+    // Подготавливает чистые таблицы перед каждым тестом.
     fun reset() {
         jdbc.execute("TRUNCATE idempotency_keys, ledger_entries, payments, accounts, users RESTART IDENTITY CASCADE")
     }
 
     @AfterEach
+    // Останавливает тестовый контейнер после выполнения набора тестов.
     fun cleanup() {
         jdbc.execute("TRUNCATE idempotency_keys, ledger_entries, payments, accounts, users RESTART IDENTITY CASCADE")
     }
 
     @Test
+    // Проверяет объединение сохранённого баланса и записей журнала в снимке счёта.
     fun `account snapshot combines stored and ledger balances`() {
         val user = service.createUser(CreateUserRequest("Student@Example.test"))
         val account = service.openAccount(OpenAccountRequest(user.id, "RUB"))
@@ -76,6 +80,7 @@ class FintechServiceIntegrationTest @Autowired constructor(
     }
 
     @Test
+    // Проверяет возврат физической версии строки PostgreSQL.
     fun `physical tuple exposes PostgreSQL row version`() {
         val user = service.createUser(CreateUserRequest("tuple@example.test"))
         val account = service.openAccount(OpenAccountRequest(user.id, "RUB"))
@@ -86,6 +91,7 @@ class FintechServiceIntegrationTest @Autowired constructor(
     }
 
     @Test
+    // Проверяет отклонение сервисом адресов, отличающихся только регистром.
     fun `service rejects email that differs only by case`() {
         service.createUser(CreateUserRequest("Student@Example.test"))
         // UNIQUE работает независимо от того, какой клиент или endpoint делает INSERT.
@@ -95,6 +101,7 @@ class FintechServiceIntegrationTest @Autowired constructor(
     }
 
     @Test
+    // Проверяет защиту базы от регистронезависимых дубликатов email.
     fun `database rejects case-insensitive duplicate email`() {
         service.createUser(CreateUserRequest("Student@Example.test"))
         assertThrows<DataIntegrityViolationException> {

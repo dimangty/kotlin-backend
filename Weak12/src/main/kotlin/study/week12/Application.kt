@@ -8,4 +8,5 @@ import org.springframework.boot.runApplication
 @SpringBootApplication
 class Application
 
+// Запускает Spring Boot-приложение с корреляцией запросов.
 fun main(args: Array<String>) { runApplication<Application>(*args) }

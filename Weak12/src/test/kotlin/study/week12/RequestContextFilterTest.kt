@@ -28,6 +28,7 @@ class RequestContextFilterTest @Autowired constructor(
     private val registry: MeterRegistry,
 ) {
     @Test
+    // Проверяет перенос идентификаторов запроса и операции в ответ.
     fun `request and operation ids propagate to response`() {
         mvc.get("/work?millis=0") {
             header("X-Request-Id", "request-42")
@@ -40,6 +41,7 @@ class RequestContextFilterTest @Autowired constructor(
     }
 
     @Test
+    // Проверяет замену небезопасного клиентского идентификатора.
     fun `unsafe client id is replaced`() {
         val response = mvc.get("/work?millis=0") {
             header("X-Request-Id", "unsafe id with spaces")
@@ -49,6 +51,7 @@ class RequestContextFilterTest @Autowired constructor(
     }
 
     @Test
+    // Проверяет увеличение метрики после завершения запроса.
     fun `completed request increments request metric`() {
         val before = registry.find("study.http.requests").timer()?.count() ?: 0L
 

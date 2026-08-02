@@ -30,11 +30,13 @@ class ApiSecurityTest @Autowired constructor(
     private val json: ObjectMapper,
 ) {
     @Test
+    // Проверяет отклонение неаутентифицированного запроса к счёту.
     fun `account endpoint rejects unauthenticated request`() {
         mvc.get("/accounts/${UUID.randomUUID()}").andExpect { status { isUnauthorized() } }
     }
 
     @Test
+    // Проверяет запрет доступа к счёту другого владельца.
     fun `account endpoint rejects another account owner`() {
         val owner = registerAndLogin("owner-${System.nanoTime()}@example.test")
         val stranger = registerAndLogin("stranger-${System.nanoTime()}@example.test")
@@ -44,6 +46,7 @@ class ApiSecurityTest @Autowired constructor(
     }
 
     @Test
+    // Проверяет выдачу счёта его аутентифицированному владельцу.
     fun `account endpoint returns account to its owner`() {
         val owner = registerAndLogin("owner-${System.nanoTime()}@example.test")
         val accountId = createAccount(owner)
@@ -52,6 +55,7 @@ class ApiSecurityTest @Autowired constructor(
     }
 
     @Test
+    // Проверяет одноразовую ротацию refresh-токена.
     fun `refresh token rotates once`() {
         val tokens = registerAndLogin("rotate-${System.nanoTime()}@example.test")
 
@@ -63,6 +67,7 @@ class ApiSecurityTest @Autowired constructor(
             .andExpect { status { isUnauthorized() } }
     }
 
+    // Регистрирует тестового пользователя и возвращает его токены.
     private fun registerAndLogin(email: String): Tokens {
         val body = """{"email":"$email","password":"correct-horse-battery-staple"}"""
         mvc.post("/auth/register") {
@@ -76,6 +81,7 @@ class ApiSecurityTest @Autowired constructor(
         return json.readValue(response, Tokens::class.java)
     }
 
+    // Создаёт тестовый счёт владельца и возвращает его идентификатор.
     private fun createAccount(owner: Tokens): String {
         val body = mvc.post("/accounts") {
             header("Authorization", "Bearer ${owner.accessToken}")

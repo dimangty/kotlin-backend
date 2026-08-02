@@ -10,18 +10,21 @@ import java.util.UUID
 
 @Service
 class AccountService(private val jdbc: JdbcTemplate) {
+    // Создаёт счёт с указанным начальным балансом.
     fun create(request: CreateAccountRequest): AccountView = jdbc.queryForObject(
         "INSERT INTO accounts(balance_minor) VALUES (?) RETURNING id, balance_minor",
         accountRowMapper("CREATE"),
         request.initialBalanceMinor,
     )
 
+    // Возвращает текущий баланс счёта.
     fun balance(accountId: UUID): AccountView = jdbc.queryForObject(
         "SELECT id, balance_minor FROM accounts WHERE id = ?",
         accountRowMapper("READ"),
         accountId,
     )
 
+    // Атомарно списывает средства одним условным SQL-обновлением.
     fun atomicDebit(accountId: UUID, amountMinor: Long): AccountView {
         require(amountMinor > 0) { "amountMinor must be positive" }
 
@@ -42,6 +45,7 @@ class AccountService(private val jdbc: JdbcTemplate) {
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
+    // Списывает средства после блокировки строки счёта.
     fun lockedDebit(accountId: UUID, amountMinor: Long): AccountView {
         require(amountMinor > 0) { "amountMinor must be positive" }
 
@@ -61,6 +65,7 @@ class AccountService(private val jdbc: JdbcTemplate) {
         return AccountView(accountId, newBalance, "SELECT_FOR_UPDATE")
     }
 
+    // Создаёт преобразователь строки счёта с отметкой выбранной стратегии.
     private fun accountRowMapper(strategy: String) = org.springframework.jdbc.core.RowMapper<AccountView> { rs, _ ->
         AccountView(
             id = rs.getObject("id", UUID::class.java),

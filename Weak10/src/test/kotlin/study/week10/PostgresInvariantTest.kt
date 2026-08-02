@@ -32,6 +32,7 @@ class PostgresInvariantTest {
     }
 
     @BeforeEach
+    // Создаёт схему и очищает данные перед каждым тестом.
     fun reset() {
         connection().use { c ->
         c.createStatement().execute("DROP TABLE IF EXISTS requests; DROP TABLE IF EXISTS accounts")
@@ -41,6 +42,7 @@ class PostgresInvariantTest {
     }
 
     @AfterEach
+    // Останавливает контейнер PostgreSQL после выполнения тестов.
     fun cleanup() {
         connection().use { connection ->
             connection.createStatement().use { statement ->
@@ -50,12 +52,14 @@ class PostgresInvariantTest {
     }
 
     @Test
+    // Проверяет запрет дублирования ключа идемпотентности на уровне базы.
     fun `database rejects duplicate idempotency key`() {
         connection().use { c -> c.createStatement().execute("INSERT INTO requests VALUES ('same')") }
         assertThrows<SQLException> { connection().use { c -> c.createStatement().execute("INSERT INTO requests VALUES ('same')") } }
     }
 
     @Test
+    // Проверяет неотрицательность баланса при параллельных списаниях.
     fun `parallel atomic debits preserve non-negative balance`() {
         val start = CountDownLatch(1)
         val pool = Executors.newFixedThreadPool(20)
@@ -83,10 +87,12 @@ class PostgresInvariantTest {
         }
     }
 
+    // Корректно завершает пул потоков теста.
     private fun shutdown(pool: ExecutorService) {
         pool.shutdownNow()
         assertTrue(pool.awaitTermination(30, TimeUnit.SECONDS), "Рабочие потоки теста не завершились")
     }
 
+    // Открывает соединение с тестовой базой PostgreSQL.
     private fun connection() = DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password)
 }

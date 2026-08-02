@@ -8,6 +8,7 @@ import java.time.Instant
 
 @Service
 class PaymentHistoryService(private val jdbc: JdbcTemplate) {
+    // Генерирует тестовую историю платежей.
     fun generate(request: GeneratePaymentsRequest): Int {
         val inserted = jdbc.update(
             """
@@ -29,6 +30,7 @@ class PaymentHistoryService(private val jdbc: JdbcTemplate) {
         return inserted
     }
 
+    // Возвращает ограниченную историю платежей пользователя с заданного момента.
     fun history(userId: Long, from: Instant, limit: Int): List<PaymentView> {
         require(limit in 1..100) { "limit must be between 1 and 100" }
         return jdbc.query(
@@ -46,6 +48,7 @@ class PaymentHistoryService(private val jdbc: JdbcTemplate) {
         )
     }
 
+    // Возвращает ожидающие платежи, созданные раньше указанного момента.
     fun pendingBefore(before: Instant, limit: Int): List<PaymentView> {
         require(limit in 1..100) { "limit must be between 1 and 100" }
         return jdbc.query(
@@ -64,6 +67,7 @@ class PaymentHistoryService(private val jdbc: JdbcTemplate) {
         )
     }
 
+    // Возвращает план выполнения запроса истории пользователя.
     fun explainHistory(userId: Long, from: Instant): String = requireNotNull(
         jdbc.queryForObject(
             // estimated/actual rows и buffers позволяют проверить решение численно,
@@ -82,6 +86,7 @@ class PaymentHistoryService(private val jdbc: JdbcTemplate) {
         ),
     ) { "EXPLAIN must return a JSON plan" }
 
+    // Возвращает описания индексов таблицы платежей.
     fun indexes(): List<IndexDescription> = jdbc.query(
         """
         SELECT indexname, indexdef

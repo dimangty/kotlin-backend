@@ -15,9 +15,11 @@ import java.util.concurrent.TimeUnit
 @RestController
 class HttpController {
     @GetMapping("/health")
+    // Возвращает состояние доступности приложения.
     fun health(): Map<String, String> = mapOf("status" to "UP")
 
     @GetMapping("/hello")
+    // Формирует персонализированное приветствие и HTTP-заголовки ответа.
     fun hello(@RequestParam(defaultValue = "backend") name: String): ResponseEntity<Map<String, String>> =
         ResponseEntity.ok()
             // Cache-Control показывает, что семантика HTTP живет не только в JSON body.
@@ -25,6 +27,7 @@ class HttpController {
             .body(mapOf("message" to "Hello, $name!"))
 
     @PostMapping("/echo")
+    // Возвращает полученное сообщение вместе с идентификатором запроса.
     fun echo(
         @RequestBody request: EchoRequest,
         @RequestHeader("X-Request-Id", required = false) requestId: String?,

@@ -12,6 +12,7 @@ import org.springframework.web.filter.OncePerRequestFilter
 
 @Component
 class AccessTokenFilter(private val auth: AuthService) : OncePerRequestFilter() {
+    // Проверяет bearer-токен и устанавливает аутентификацию на время запроса.
     override fun doFilterInternal(request: HttpServletRequest, response: HttpServletResponse, chain: FilterChain) {
         val token = request.getHeader("Authorization")?.removePrefix("Bearer ")
         auth.userForAccess(token)?.let { userId ->

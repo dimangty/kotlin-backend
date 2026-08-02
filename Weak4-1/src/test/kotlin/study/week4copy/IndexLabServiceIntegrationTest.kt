@@ -39,6 +39,7 @@ class IndexLabServiceIntegrationTest @Autowired constructor(
 
         @DynamicPropertySource
         @JvmStatic
+        // Передаёт приложению параметры запущенной тестовой базы данных.
         fun database(registry: DynamicPropertyRegistry) {
             registry.add("spring.datasource.url", postgres::getJdbcUrl)
             registry.add("spring.datasource.username", postgres::getUsername)
@@ -47,16 +48,19 @@ class IndexLabServiceIntegrationTest @Autowired constructor(
     }
 
     @BeforeEach
+    // Очищает тестовые данные перед каждым сценарием.
     fun reset() {
         jdbc.execute("TRUNCATE events RESTART IDENTITY")
     }
 
     @AfterEach
+    // Останавливает контейнер базы после завершения тестов.
     fun cleanup() {
         jdbc.execute("TRUNCATE events RESTART IDENTITY")
     }
 
     @Test
+    // Проверяет использование B-tree индекса при поиске по UUID.
     fun `uuid lookup uses btree`() {
         assertEquals(5_000, service.generate(GenerateEventsRequest(5_000)))
         val publicId = jdbc.queryForObject("SELECT public_id FROM events WHERE id = 2500", UUID::class.java)!!
@@ -69,6 +73,7 @@ class IndexLabServiceIntegrationTest @Autowired constructor(
     }
 
     @Test
+    // Проверяет расчёт размеров отношений и распределения статусов.
     fun `lab reports generated relation sizes and status distribution`() {
         assertEquals(5_000, service.generate(GenerateEventsRequest(5_000)))
         val sizes = service.sizes()
@@ -78,6 +83,7 @@ class IndexLabServiceIntegrationTest @Autowired constructor(
     }
 
     @Test
+    // Проверяет создание индексов для столбцов с разной селективностью.
     fun `migration creates indexes for contrasting selectivity`() {
         val definitions = jdbc.queryForList(
             "SELECT indexdef FROM pg_indexes WHERE schemaname = 'public' AND tablename = 'events'",

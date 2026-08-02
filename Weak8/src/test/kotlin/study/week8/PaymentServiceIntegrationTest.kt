@@ -40,6 +40,7 @@ class PaymentServiceIntegrationTest @Autowired constructor(
 
         @DynamicPropertySource
         @JvmStatic
+        // Передаёт приложению параметры запущенной тестовой базы данных.
         fun database(registry: DynamicPropertyRegistry) {
             registry.add("spring.datasource.url", postgres::getJdbcUrl)
             registry.add("spring.datasource.username", postgres::getUsername)
@@ -48,16 +49,19 @@ class PaymentServiceIntegrationTest @Autowired constructor(
     }
 
     @BeforeEach
+    // Очищает платежи перед каждым тестовым сценарием.
     fun reset() {
         jdbc.execute("TRUNCATE payments")
     }
 
     @AfterEach
+    // Останавливает контейнер базы после завершения тестов.
     fun cleanup() {
         jdbc.execute("TRUNCATE payments")
     }
 
     @Test
+    // Проверяет завершение ожидающего платежа через JPA.
     fun `jpa transition completes a pending payment`() {
         val accountId = UUID.randomUUID()
         val paymentId = UUID.randomUUID()
@@ -69,6 +73,7 @@ class PaymentServiceIntegrationTest @Autowired constructor(
     }
 
     @Test
+    // Проверяет дневную агрегацию завершённых платежей через JDBC.
     fun `jdbc projection aggregates completed payments by day`() {
         val accountId = UUID.randomUUID()
         val paymentId = UUID.randomUUID()

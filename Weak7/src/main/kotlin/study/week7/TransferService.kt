@@ -11,6 +11,7 @@ import java.util.UUID
 @Service
 class TransferService(private val jdbc: JdbcTemplate) {
     @Transactional
+    // Выполняет идемпотентный перевод между счетами.
     fun transfer(key: String, request: TransferRequest): TransferResponse {
         require(key.isNotBlank() && key.length <= 128) { "invalid Idempotency-Key" }
         require(request.amountMinor > 0) { "amountMinor must be positive" }
@@ -54,6 +55,7 @@ class TransferService(private val jdbc: JdbcTemplate) {
         return TransferResponse(transferId, "COMPLETED")
     }
 
+    // Ищет ранее выполненный перевод и проверяет совпадение запроса.
     private fun findExisting(key: String, request: TransferRequest): TransferResponse? {
         val stored = jdbc.query(
             """

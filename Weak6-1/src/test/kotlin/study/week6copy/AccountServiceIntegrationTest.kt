@@ -43,6 +43,7 @@ class AccountServiceIntegrationTest @Autowired constructor(
 
         @DynamicPropertySource
         @JvmStatic
+        // Передаёт приложению параметры запущенной тестовой базы данных.
         fun database(registry: DynamicPropertyRegistry) {
             registry.add("spring.datasource.url", postgres::getJdbcUrl)
             registry.add("spring.datasource.username", postgres::getUsername)
@@ -51,16 +52,19 @@ class AccountServiceIntegrationTest @Autowired constructor(
     }
 
     @BeforeEach
+    // Подготавливает таблицу счетов перед каждым тестом.
     fun reset() {
         jdbc.execute("TRUNCATE accounts")
     }
 
     @AfterEach
+    // Останавливает контейнер базы после завершения тестов.
     fun cleanup() {
         jdbc.execute("TRUNCATE accounts")
     }
 
     @Test
+    // Проверяет защиту атомарного обновления от потерянных изменений.
     fun `atomic update prevents lost updates under contention`() {
         val account = accounts.create(CreateAccountRequest(1_000))
         val results = runConcurrently(10) { accounts.atomicDebit(account.id, 100) }
@@ -70,6 +74,7 @@ class AccountServiceIntegrationTest @Autowired constructor(
     }
 
     @Test
+    // Проверяет чтение актуального баланса конкурирующими транзакциями с блокировкой.
     fun `row lock makes competing decisions observe latest committed balance`() {
         val account = accounts.create(CreateAccountRequest(1_000))
         val start = CountDownLatch(1)
@@ -91,6 +96,7 @@ class AccountServiceIntegrationTest @Autowired constructor(
     }
 
     @Test
+    // Проверяет повтор всей транзакции после конфликта сериализации.
     fun `serializable retry repeats the whole debit transaction`() {
         val account = accounts.create(CreateAccountRequest(1_000))
         val results = runConcurrently(5) { serializableDebits.debit(account.id, 100, maxAttempts = 50) }
@@ -101,6 +107,7 @@ class AccountServiceIntegrationTest @Autowired constructor(
         assertTrue(results.any { it.attempts > 1 }, results.toString())
     }
 
+    // Одновременно запускает заданное число операций и собирает результаты.
     private fun runConcurrently(count: Int, action: () -> AccountView): List<AccountView> {
         val start = CountDownLatch(1)
         val pool = Executors.newFixedThreadPool(count)
@@ -118,6 +125,7 @@ class AccountServiceIntegrationTest @Autowired constructor(
         }
     }
 
+    // Корректно завершает пул потоков теста.
     private fun shutdown(pool: ExecutorService) {
         pool.shutdownNow()
         assertTrue(pool.awaitTermination(30, TimeUnit.SECONDS), "Рабочие потоки теста не завершились")

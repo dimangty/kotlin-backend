@@ -22,6 +22,7 @@ import org.springframework.test.web.servlet.get
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class ReadinessTest @Autowired constructor(private val mvc: MockMvc) {
     @Test
+    // Проверяет доступность readiness-пробы приложения.
     fun `readiness probe is exposed`() {
         mvc.get("/actuator/health/readiness").andExpect {
             status { isOk() }

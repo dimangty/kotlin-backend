@@ -49,6 +49,7 @@ class FintechServiceIntegrationTest @Autowired constructor(
 
         @DynamicPropertySource
         @JvmStatic
+        // Передаёт приложению параметры запущенной тестовой базы данных.
         fun database(registry: DynamicPropertyRegistry) {
             registry.add("spring.datasource.url", postgres::getJdbcUrl)
             registry.add("spring.datasource.username", postgres::getUsername)
@@ -57,6 +58,7 @@ class FintechServiceIntegrationTest @Autowired constructor(
     }
 
     @BeforeEach
+    // Подготавливает счета и очищает финансовые данные перед тестом.
     fun reset() {
         jdbc.execute("TRUNCATE audit_events, ledger_entries, transfers, accounts")
         jdbc.update(
@@ -72,11 +74,13 @@ class FintechServiceIntegrationTest @Autowired constructor(
     }
 
     @AfterEach
+    // Останавливает контейнер базы после завершения тестов.
     fun cleanup() {
         jdbc.execute("TRUNCATE audit_events, ledger_entries, transfers, accounts")
     }
 
     @Test
+    // Проверяет все инварианты при конкурентных повторах перевода.
     fun `concurrent retries preserve every invariant`() {
         val start = CountDownLatch(1)
         val pool = Executors.newFixedThreadPool(2)
@@ -103,6 +107,7 @@ class FintechServiceIntegrationTest @Autowired constructor(
     }
 
     @Test
+    // Проверяет запрет изменения перевода для прежнего ключа идемпотентности.
     fun `same key cannot change the transfer payload`() {
         service.transfer("same-key", CreateTransfer(fromId, toId, 100), "test-user")
 
@@ -112,6 +117,7 @@ class FintechServiceIntegrationTest @Autowired constructor(
     }
 
     @Test
+    // Проверяет общий баланс и инвариант журнала при параллельных переводах.
     fun `fifty parallel transfers preserve total balance and ledger invariant`() {
         val start = CountDownLatch(1)
         val pool = Executors.newFixedThreadPool(10)
@@ -142,6 +148,7 @@ class FintechServiceIntegrationTest @Autowired constructor(
     }
 
     @Test
+    // Проверяет стабильную убывающую пагинацию журнала по курсору.
     fun `ledger uses a stable descending cursor`() {
         repeat(3) { number ->
             service.transfer("cursor-$number", CreateTransfer(fromId, toId, 1), "test-user")
@@ -156,8 +163,10 @@ class FintechServiceIntegrationTest @Autowired constructor(
         assertEquals((firstPage + secondPage).sortedByDescending { it.id }, firstPage + secondPage)
     }
 
+    // Возвращает количество строк в указанной тестовой таблице.
     private fun count(table: String): Int = jdbc.queryForObject("SELECT count(*) FROM $table", Int::class.java)!!
 
+    // Корректно завершает пул потоков теста.
     private fun shutdown(pool: ExecutorService) {
         pool.shutdownNow()
         assertTrue(pool.awaitTermination(30, TimeUnit.SECONDS), "Рабочие потоки теста не завершились")

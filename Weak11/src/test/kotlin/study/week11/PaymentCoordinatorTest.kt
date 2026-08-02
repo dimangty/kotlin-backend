@@ -19,9 +19,11 @@ import kotlin.test.assertFailsWith
 @TestInstance(TestInstance.Lifecycle.PER_METHOD)
 class PaymentCoordinatorTest {
     @Test
+    // Проверяет возврат одного завершённого платежа при повторе запроса.
     fun `retry returns one completed payment`() = runTest {
         var calls = 0
         val gateway = object : ExternalGateway {
+            // Регистрирует тестовый вызов шлюза и возвращает успешный результат.
             override suspend fun charge(key: String, amountMinor: Long): String { calls++; return "ok" }
         }
         val coordinator = PaymentCoordinator(MemoryRepository(), gateway)
@@ -31,9 +33,11 @@ class PaymentCoordinatorTest {
     }
 
     @Test
+    // Проверяет единственный вызов шлюза при конкурентных повторах.
     fun `concurrent retries call gateway once`() = runTest {
         var calls = 0
         val gateway = object : ExternalGateway {
+            // Имитирует задержанный вызов шлюза и учитывает число обращений.
             override suspend fun charge(key: String, amountMinor: Long): String {
                 calls++
                 delay(10)
@@ -51,6 +55,7 @@ class PaymentCoordinatorTest {
     }
 
     @Test
+    // Проверяет запрет изменения суммы для прежнего ключа идемпотентности.
     fun `same key cannot change amount`() = runTest {
         val coordinator = PaymentCoordinator(MemoryRepository(), DemoGateway())
         coordinator.pay("same", 100)
@@ -59,9 +64,11 @@ class PaymentCoordinatorTest {
     }
 
     @Test
+    // Проверяет сохранение зарезервированной операции после отмены.
     fun `cancellation leaves operation reserved for reconciliation`() = runTest {
         val repository = MemoryRepository()
         val gateway = object : ExternalGateway {
+            // Имитирует внешний вызов, который завершается только отменой.
             override suspend fun charge(key: String, amountMinor: Long): String = awaitCancellation()
         }
         val coordinator = PaymentCoordinator(repository, gateway)

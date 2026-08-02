@@ -10,12 +10,14 @@ import java.util.UUID
 @Service
 class PaymentService(private val jpa: PaymentRepository, private val jdbc: JdbcTemplate) {
     @Transactional
+    // Переводит ожидающий платёж в завершённое состояние.
     fun complete(id: UUID) {
         val payment = jpa.findById(id).orElseThrow()
         // Dirty checking создаст UPDATE при commit; transaction boundary находится в public service method.
         payment.status = "COMPLETED"
     }
 
+    // Рассчитывает дневные суммы завершённых платежей по счёту.
     fun dailyTotals(accountId: UUID): List<DailyTotal> = jdbc.query(
         """
         SELECT created_at::date AS day, sum(amount_minor) AS total

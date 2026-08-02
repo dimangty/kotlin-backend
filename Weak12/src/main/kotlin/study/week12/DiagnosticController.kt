@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.RestController
 
 @RestController
 class DiagnosticController {
+    // Имитирует работу заданной длительности и возвращает фактическое время.
     @GetMapping("/work") fun work(@RequestParam(defaultValue = "10") millis: Long): Map<String, Long> {
         Thread.sleep(millis.coerceIn(0, 1000))
         return mapOf("durationRequestedMs" to millis)

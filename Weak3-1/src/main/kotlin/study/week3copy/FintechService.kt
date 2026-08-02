@@ -8,6 +8,7 @@ import java.util.UUID
 
 @Service
 class FintechService(private val jdbc: JdbcTemplate) {
+    // Создаёт пользователя и возвращает его внешнее представление.
     fun createUser(request: CreateUserRequest): UserView = jdbc.queryForObject(
         """
         INSERT INTO users(email)
@@ -24,6 +25,7 @@ class FintechService(private val jdbc: JdbcTemplate) {
         request.email,
     )
 
+    // Открывает счёт для указанного пользователя.
     fun openAccount(request: OpenAccountRequest): AccountView = jdbc.queryForObject(
         """
         INSERT INTO accounts(owner_id, currency)
@@ -42,6 +44,7 @@ class FintechService(private val jdbc: JdbcTemplate) {
         request.currency,
     )
 
+    // Создаёт платёж и соответствующее движение средств.
     fun createPayment(request: CreatePaymentRequest): PaymentView = jdbc.queryForObject(
         """
         INSERT INTO payments(account_id, amount_minor, status)
@@ -61,6 +64,7 @@ class FintechService(private val jdbc: JdbcTemplate) {
         request.status.name,
     )
 
+    // Формирует снимок счёта из сохранённого и рассчитанного балансов.
     fun accountSnapshot(accountId: UUID): AccountSnapshot = jdbc.queryForObject(
         """
         WITH ledger AS (
@@ -92,6 +96,7 @@ class FintechService(private val jdbc: JdbcTemplate) {
         accountId,
     )
 
+    // Возвращает физические атрибуты версии строки счёта в PostgreSQL.
     fun physicalTuple(accountId: UUID): PhysicalTuple = jdbc.queryForObject(
         // ctid указывает на физическое место версии строки, xmin — создавшую её transaction.
         // Эти поля полезны для лаборатории, но на них нельзя строить бизнес-контракт.

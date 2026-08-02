@@ -30,6 +30,7 @@ class NoteControllerTest @Autowired constructor(
     private val json: ObjectMapper,
 ) {
     @Test
+    // Проверяет клиентскую ошибку при некорректном идентификаторе заметки.
     fun `malformed note id returns a client error`() {
         mvc.get("/notes/not-a-uuid").andExpect {
             status { isBadRequest() }
@@ -38,6 +39,7 @@ class NoteControllerTest @Autowired constructor(
     }
 
     @Test
+    // Проверяет отклонение запроса с пустым заголовком заметки.
     fun `blank title fails validation`() {
         mvc.post("/notes") {
             contentType = MediaType.APPLICATION_JSON
@@ -49,6 +51,7 @@ class NoteControllerTest @Autowired constructor(
     }
 
     @Test
+    // Проверяет успешное обновление существующей заметки.
     fun `existing note can be updated`() {
         val id = createNote()
         mvc.put("/notes/$id") {
@@ -61,6 +64,7 @@ class NoteControllerTest @Autowired constructor(
     }
 
     @Test
+    // Проверяет конфликт при обновлении с устаревшей версией.
     fun `stale note version returns a conflict`() {
         val id = createNote()
         mvc.put("/notes/$id") {
@@ -77,6 +81,7 @@ class NoteControllerTest @Autowired constructor(
     }
 
     @Test
+    // Проверяет недоступность заметки после удаления.
     fun `deleted note is no longer available`() {
         val id = createNote()
         mvc.delete("/notes/$id").andExpect { status { isNoContent() } }
@@ -86,6 +91,7 @@ class NoteControllerTest @Autowired constructor(
         }
     }
 
+    // Создаёт тестовую заметку и возвращает её идентификатор.
     private fun createNote(): String {
         val body = mvc.post("/notes") {
             contentType = MediaType.APPLICATION_JSON
