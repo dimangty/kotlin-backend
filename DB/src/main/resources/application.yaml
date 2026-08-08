@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: database-labs
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5450/database_labs}
+    username: ${DB_USER:study}
+    password: ${DB_PASSWORD:study}
+    hikari:
+      maximum-pool-size: 12
+      # Учебные блокировки не должны оставлять HTTP-запрос зависшим навсегда.
+      connection-timeout: 5000
+  flyway:
+    enabled: true
+
+server:
+  port: ${SERVER_PORT:8080}
