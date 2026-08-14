@@ -1,0 +1,13 @@
+# Артефакты Gradle и Kotlin/Wasm воспроизводятся из исходников.
+.gradle/
+.kotlin/
+build/
+kotlin-js-store/
+local.properties
+
+# Локальные настройки IDE не должны попадать в учебный проект.
+.idea/
+*.iml
+
+# Системный файл macOS не относится к приложению.
+.DS_Store

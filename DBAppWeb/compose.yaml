@@ -1,0 +1,42 @@
+# Docker Compose поднимает изолированную БД на 5433 и REST API на 18082.
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: dbappweb-postgres
+    environment:
+      POSTGRES_DB: dbappweb
+      POSTGRES_USER: dbapp
+      POSTGRES_PASSWORD: dbapp
+    ports:
+      # Порт 5433 не конфликтует с Homebrew PostgreSQL 18 на стандартном 5432.
+      - "127.0.0.1:5433:5432"
+    volumes:
+      # Начиная с PostgreSQL 18 mount ставится уровнем выше версионного каталога данных.
+      - dbappweb_postgres18_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dbapp -d dbappweb"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./Backend
+    container_name: dbappweb-backend
+    environment:
+      DEMO_DATABASE_URL: jdbc:postgresql://postgres:5432/dbappweb
+      DEMO_DATABASE_USER: dbapp
+      DEMO_DATABASE_PASSWORD: dbapp
+      APP_ALLOWED_ORIGINS: http://localhost:8081,http://127.0.0.1:8081
+    ports:
+      # Внешний 18082 не конфликтует с распространённым локальным портом 8080.
+      - "127.0.0.1:18082:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  # Volume удаляется только явной командой docker compose down -v.
+  dbappweb_postgres18_data:

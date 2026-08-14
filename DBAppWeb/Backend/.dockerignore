@@ -1,0 +1,6 @@
+# Docker не получает локальные кеши, IDE-файлы и тестовые артефакты.
+.gradle
+build
+.idea
+*.iml
+.DS_Store

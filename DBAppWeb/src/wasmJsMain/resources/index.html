@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DBAppWeb - лаборатория PostgreSQL</title>
+    <style>
+        /* Canvas занимает всё окно, иначе Compose получает нулевую или ограниченную высоту. */
+        html, body, #ComposeTarget {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        /* Нейтральный фон скрывает белую вспышку до инициализации Wasm. */
+        body {
+            background: #f7f8fc;
+        }
+    </style>
+</head>
+<body>
+    <!-- ComposeViewport сам создаёт canvas внутри этого контейнера. -->
+    <div id="ComposeTarget"></div>
+    <!-- Webpack entrypoint загружает Kotlin/Wasm runtime после появления контейнера в DOM. -->
+    <script src="dbappweb.js"></script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+# REST API слушает стандартный локальный порт, к которому обращаются Web- и Desktop-клиенты.
+server:
+  port: 8080
+
+# JDBC-сценарии используют эти значения напрямую, чтобы явно управлять несколькими Connection.
+demo:
+  database:
+    url: ${DEMO_DATABASE_URL:jdbc:postgresql://localhost:5432/postgres}
+    user: ${DEMO_DATABASE_USER:${USER:postgres}}
+    password: ${DEMO_DATABASE_PASSWORD:}
+
+# Разрешены только локальные origins webpack dev server; список можно сузить переменной окружения.
+app:
+  allowed-origins: ${APP_ALLOWED_ORIGINS:http://localhost:8081,http://127.0.0.1:8081}
+
+# Docker healthcheck использует только health endpoint без раскрытия лишней служебной информации.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+# Понятные короткие логи оставляют учебный SQL в ответе API, а инфраструктурный шум - в консоли.
+logging:
+  level:
+    root: INFO
+    ru.dbappweb: INFO

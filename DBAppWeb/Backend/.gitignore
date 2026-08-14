@@ -1,0 +1,6 @@
+# Локальные результаты Gradle и IDE воспроизводятся из исходников.
+.gradle/
+build/
+.idea/
+*.iml
+.DS_Store
