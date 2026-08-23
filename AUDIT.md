@@ -11,6 +11,7 @@
 - Week13 собран как реальный Docker image: readiness `200/UP`, user `app`, root filesystem read-only.
 - Временные Docker-контейнеры и audit image после проверки удалены.
 
+
 ## Соответствие неделям
 
 | Неделя | Что подтверждено | Что остаётся учебной работой |
