@@ -46,7 +46,7 @@
 | 7 | Locks, deadlocks и fintech correctness | Перевод с ordered locks, ledger и idempotency key | [Weak7](Weak7/) |
 | 8 | Spring Data, JDBC/JPA и migrations | Flyway-схема, JPA dirty checking и JDBC projection | [Weak8](Weak8/) |
 | 9 | Authentication и API security | Password hashing, token rotation, RBAC/ownership и 401/403 tests | [Weak9](Weak9/) |
-| 10 | Тестирование базы и конкурентности | PostgreSQL Testcontainers, constraints и parallel debit tests | [Weak10](Weak10/) |
+| 10 | JPA-связи и validation | Course–Instructor, error contract, Flyway и PostgreSQL integration tests | [Weak10](Weak10/) |
 | 11 | Coroutines и resilience | Timeout, cancellation, idempotent retry и reconciliation | [Weak11](Weak11/) |
 | 12 | Logs, metrics и diagnostics | Request/operation IDs, безопасный MDC и Prometheus metrics | [Weak12](Weak12/) |
 | 13 | Docker, CI/CD и safe deploy | Multi-stage image, non-root runtime, health и readiness | [Weak13](Weak13/) |
@@ -59,7 +59,7 @@
 Две темы плана проходят сквозь несколько недель сразу и вынесены в отдельные документы. Это чек-листы: они связывают обязательные лабораторные работы с конкретными скриптами репозитория.
 
 - [Индексы](docs/index-track.md) - дополнение к неделям 3-5: семь обязательных лабораторных, форма ответа и типовые ошибки.
-- [Транзакции и конкурентность](docs/concurrency-track.md) - дополнение к неделям 6-7, 10 и 11: каталог проблем, семь обязательных экспериментов и классификация retryable ошибок.
+- [Транзакции и конкурентность](docs/concurrency-track.md) - дополнение к неделям 6-7, 11 и 16: каталог проблем, семь обязательных экспериментов и классификация retryable ошибок.
 - [Безопасный деплой](Weak13/docs/safe-deploy.md) - дополнение к неделям 8 и 13: expand-contract, поведение при двух instance, откат и restore.
 
 ## SQL-лаборатории

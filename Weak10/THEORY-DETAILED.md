@@ -1,337 +1,225 @@
 # Неделя 10 — подробная теория
 
-Тестирование базы и конкурентности.
+Course Catalog: JPA-связи, validation, error contract и тестирование вертикального среза.
 
-> Правило недели: **тест, который не падает при удалении защиты, ничего не проверяет.** Удалите `UNIQUE`, уберите `FOR UPDATE`, снимите `CHECK` — тесты обязаны покраснеть. Если они зелёные, у вас ложная уверенность.
-
----
-
-## 1. Уровни тестов
-
-### 1.1 Пирамида для backend с базой
-
-| Уровень | Что | Инструменты | Когда |
-|---|---|---|---|
-| **Unit** | чистые функции, доменные правила, расчёты | JUnit 5, без Spring | всегда, много |
-| **Slice** | один слой изолированно | `@WebMvcTest`, `@DataJpaTest`, `@JsonTest` | контракты HTTP и маппинг |
-| **Integration** | приложение + настоящий PostgreSQL | `@SpringBootTest` + Testcontainers | всё, что касается данных |
-| **E2E** | полный HTTP-путь | `RANDOM_PORT` + `TestRestTemplate`/`WebTestClient` | ключевые сценарии |
-
-Для клиентской разработки привычна широкая база unit-тестов и узкая верхушка. В backend с финансовыми данными **основные гарантии живут не в коде**, а в constraints, транзакциях и блокировках, — поэтому доля интеграционных тестов существенно выше, и это правильно.
-
-### 1.2 Роль моков
-
-Мок репозитория проверяет, что сервис вызвал метод. Он **не** проверяет, что данные сохранились, что constraint сработал, что параллельная транзакция не потеряла обновление. Моки уместны для внешних сервисов (неделя 11) и для изоляции чистой логики — не для базы.
+> Главная идея: корректный API защищает данные последовательно. DTO проверяет форму, сервис — бизнес-смысл, PostgreSQL — целостность независимо от пути записи.
 
 ---
 
-## 2. Почему не H2
+## 1. Вертикальный срез вместо набора аннотаций
 
-Соблазн понятен: H2 стартует за миллисекунды. Но в PostgreSQL-совместимом режиме он не воспроизводит:
+В примерах курса постепенно появляются controller, service, repository, JPA и tests. На этой неделе они соединяются в один сценарий:
 
-- MVCC и реальную семантику уровней изоляции (write skew, `40001`);
-- `SELECT ... FOR UPDATE SKIP LOCKED` и поведение блокировок;
-- обнаружение дедлоков и `40P01`;
-- `EXPLAIN`/планы — значит, проверять индексы невозможно;
-- `jsonb`, `inet`, `timestamptz`, массивы, `interval`;
-- партиальные, expression, GIN/BRIN индексы;
-- точную семантику `ON CONFLICT` и `RETURNING`;
-- коды `SQLSTATE`, на которые вы завязали обработку ошибок;
-- поведение Flyway-миграций с PostgreSQL-специфичным DDL.
+1. Клиент создаёт преподавателя.
+2. Клиент создаёт курс и передаёт `instructorId`.
+3. Controller валидирует JSON.
+4. Service убеждается, что преподаватель существует.
+5. JPA записывает курс с внешним ключом.
+6. PostgreSQL проверяет `NOT NULL`, `CHECK` и `FOREIGN KEY`.
+7. API возвращает DTO с идентификаторами и именем преподавателя.
 
-Результат: тест на H2 может пройти там, где PostgreSQL упадёт, и наоборот. Для темы этого курса H2 непригоден.
+Польза вертикального среза в том, что границы видны на рабочем коде. Можно проверить не только отдельный метод, но и итоговый HTTP-контракт.
 
----
+## 2. DTO нельзя подменять JPA-сущностью
 
-## 3. Testcontainers
+### 2.1 У моделей разные причины меняться
 
-### 3.1 Базовая настройка
+`Course` меняется, когда меняется схема или persistence mapping. `CourseRequest` меняется, когда меняется контракт клиента. `CourseResponse` меняется, когда API решает показать новое поле. Это три независимых причины.
 
-```kotlin
-@SpringBootTest
-@Testcontainers
-abstract class IntegrationTest {
-    companion object {
-        @Container
-        @JvmStatic
-        val postgres = PostgreSQLContainer("postgres:17-alpine")
-            .withDatabaseName("fintech")
+Если вернуть entity напрямую, наружу просачиваются:
 
-        @DynamicPropertySource
-        @JvmStatic
-        fun properties(registry: DynamicPropertyRegistry) {
-            registry.add("spring.datasource.url", postgres::getJdbcUrl)
-            registry.add("spring.datasource.username", postgres::getUsername)
-            registry.add("spring.datasource.password", postgres::getPassword)
-        }
-    }
-}
+- ленивые proxy Hibernate;
+- двунаправленные связи и риск бесконечной рекурсии;
+- технические поля (`version`, audit, internal status);
+- зависимость JSON от открытой Hibernate session;
+- возможность случайно изменить API при рефакторинге persistence-модели.
+
+### 2.2 Request и response тоже полезно разделять
+
+В запросе создания нет серверного `id`, а в ответе он обязателен. В большом API разумно иметь `CreateCourseRequest`, `UpdateCourseRequest` и `CourseResponse`. В лаборатории create/update используют общий `CourseRequest`, потому что их поля пока совпадают.
+
+## 3. Моделирование Course–Instructor
+
+### 3.1 Реляционная модель
+
+```sql
+CREATE TABLE courses (
+    id bigserial PRIMARY KEY,
+    name varchar(200) NOT NULL,
+    instructor_id bigint NOT NULL REFERENCES instructors(id)
+);
 ```
 
-Версия образа — **та же, что в проде**. Тестировать на 17, деплоить на 15 — значит не тестировать.
+Физически связь хранится в `courses.instructor_id`, поэтому именно `Course` является owning side JPA-связи.
 
-### 3.2 Singleton-контейнер
-
-`@Testcontainers` на каждом классе поднимает контейнер заново. На двадцати тестовых классах это минуты. Правильный приём — один контейнер на JVM:
+### 3.2 JPA mapping
 
 ```kotlin
-object Postgres {
-    val instance: PostgreSQLContainer<*> = PostgreSQLContainer("postgres:17-alpine").apply {
-        withReuse(true)
-        start()          // остановится вместе с JVM (Ryuk уберёт контейнер)
-    }
-}
+@ManyToOne(fetch = FetchType.LAZY, optional = false)
+@JoinColumn(name = "instructor_id", nullable = false)
+var instructor: Instructor
 ```
 
-Локально включается reuse (`~/.testcontainers.properties`: `testcontainers.reuse.enable=true`) — контейнер переживает прогоны. В CI reuse обычно не нужен.
+На обратной стороне:
 
-### 3.3 Ускорение
+```kotlin
+@OneToMany(mappedBy = "instructor")
+val courses: MutableList<Course>
+```
 
-- `postgres:17-alpine` вместо полного образа.
-- Отключить `fsync` **только в тестовом контейнере**: `withCommand("postgres", "-c", "fsync=off", "-c", "full_page_writes=off")`. Это законно ровно потому, что данные одноразовые.
-- Общий Spring-контекст между тестовыми классами (не менять `@MockBean`-состав без нужды — иначе контекст пересоздаётся).
-- `tmpfs` для каталога данных.
+`mappedBy` указывает имя Kotlin-поля на owning side, а не имя SQL-колонки.
+
+### 3.3 Почему `LAZY`
+
+Для курса преподаватель нужен не во всех сценариях, поэтому eager loading по умолчанию создаёт скрытые запросы и раздувает object graph. `LAZY` делает загрузку явной. Для endpoint списка лаборатория использует `@EntityGraph`, потому что response требует `instructorName`.
+
+## 4. Три уровня защиты входных данных
+
+### 4.1 Bean Validation: форма запроса
+
+`@NotBlank`, `@Size`, `@Positive` проверяют локальные свойства DTO. Они не обращаются в базу и не реализуют бизнес-сценарий.
+
+Controller активирует проверку через `@Valid`:
+
+```kotlin
+fun create(@Valid @RequestBody request: CourseRequest)
+```
+
+Если забыть `@Valid`, constraints останутся метаданными и запрос попадёт в сервис.
+
+### 4.2 Service: бизнес-смысл
+
+Положительный `instructorId` ещё не означает, что преподаватель существует. Сервис загружает его или выбрасывает `InstructorNotFound`. Это даёт клиенту осмысленный `404` до попытки вставки.
+
+### 4.3 PostgreSQL: инвариант
+
+Внешний ключ нужен даже при service check:
+
+- данные могут загружаться batch/job-ом;
+- другой endpoint может забыть проверку;
+- между проверкой и записью возможна конкурентная операция;
+- администратор или миграция могут писать напрямую.
+
+Service делает ошибку понятной. Constraint делает неправильное состояние невозможным.
+
+## 5. Error contract
+
+Плохой вариант из учебных прототипов — вернуть `ex.message` строкой. Он нестабилен, зависит от библиотеки и может показать SQL, имя таблицы или внутренний класс.
+
+Лаборатория использует фиксированную форму:
+
+```kotlin
+data class ApiError(
+    val code: String,
+    val message: String,
+    val details: Map<String, String>,
+    val requestId: String,
+)
+```
+
+Клиент принимает решение по `status` и `code`, а не разбирает человеческий текст. `details` хранит ошибки отдельных полей. `requestId` связывает ответ с логами.
+
+### 5.1 Карта статусов
+
+| Ситуация | HTTP | Code |
+|---|---:|---|
+| Нечитаемый JSON | 400 | `MALFORMED_REQUEST` |
+| Нарушены DTO constraints | 400 | `VALIDATION_FAILED` |
+| Нет преподавателя | 404 | `INSTRUCTOR_NOT_FOUND` |
+| Нет курса | 404 | `COURSE_NOT_FOUND` |
+| Конфликт версии/состояния | 409 | добавляется в задании |
+| Неожиданная ошибка | 500 | не раскрывает внутренние детали |
+
+## 6. Поиск и N+1
+
+### 6.1 Derived query
+
+Spring Data строит запрос из имени:
+
+```kotlin
+findAllByNameContainingIgnoreCaseOrderByNameAsc(courseName: String)
+```
+
+Для простого одного фильтра это читаемо. Когда появляются несколько необязательных фильтров, сложная сортировка или projection, лучше перейти к явному JPQL, Specification/Querydsl либо SQL.
+
+### 6.2 Почему появляется N+1
+
+Если сначала выбрать N курсов, а затем при маппинге DTO обратиться к `course.instructor.name`, Hibernate может выполнить ещё N запросов. `@EntityGraph(attributePaths = ["instructor"])` говорит конкретному repository method загрузить нужную связь одним запросом.
+
+`open-in-view=false` помогает: ленивую связь нельзя случайно догрузить из controller после завершения service transaction. Ошибка обнаруживается ближе к неверной границе.
+
+## 7. Transaction boundaries
+
+Транзакции принадлежат service-методам:
+
+- `create`, `update`, `delete` — read/write transaction;
+- `findAll`, `InstructorService.require` — `readOnly=true`;
+- controller не знает о persistence context;
+- repository отвечает за доступ к данным, но не задаёт бизнес-сценарий.
+
+В `update` Hibernate dirty checking записывает изменённые поля при commit. Явный второй `save` для уже managed entity не нужен.
+
+## 8. Flyway вместо Hibernate DDL
+
+`generate-ddl` и `ddl-auto=create-drop` удобны для прототипа, но не дают ревьюируемую историю изменений и опасны для реальных данных.
+
+В лаборатории:
+
+```yaml
+spring.jpa.hibernate.ddl-auto: validate
+spring.flyway.enabled: true
+```
+
+Flyway создаёт схему из `V1__course_catalog.sql`. Hibernate сравнивает mapping с готовой схемой и падает при несовпадении. Так SQL остаётся версионированным артефактом проекта.
+
+## 9. Стратегия тестов
+
+### 9.1 Unit test сервиса
+
+`CourseServiceTest` не поднимает Spring. Он проверяет две бизнес-ветки:
+
+- существующий преподаватель связывается с курсом;
+- неизвестный преподаватель останавливает сценарий до `save`.
+
+Такой тест быстрый и точно локализует правило.
+
+### 9.2 Integration test
+
+`CourseCatalogIntegrationTest` поднимает:
+
+- Spring Boot context;
+- MockMvc и JSON mapping;
+- Bean Validation и `ControllerAdvice`;
+- JPA repositories и transaction management;
+- Flyway migrations;
+- настоящий PostgreSQL 17 через Testcontainers.
+
+Он проверяет lifecycle курса, фильтрацию, DTO relation и negative cases. H2 не используется: даже простая JPA-схема должна тестироваться в том диалекте, где будет работать.
+
+### 9.3 Что должен ловить тест
+
+Полезная ручная mutation-проверка:
+
+1. Уберите `@Valid` — validation test должен покраснеть.
+2. Уберите service check преподавателя — not-found contract должен измениться и тест упасть.
+3. Уберите `@EntityGraph`, добавьте query counter — N+1 test должен показать рост запросов.
+4. Уберите FK из миграции — отдельный constraint test должен покраснеть (его предлагается добавить).
+
+## 10. Типичные ошибки
+
+1. Entity используется как request и response.
+2. `@Valid` забыли на параметре controller.
+3. Существование FK проверяется только аннотацией `@Positive`.
+4. Исключение превращается в `500` с текстом драйвера.
+5. `CourseNotFound` возвращается как `500`, а не `404`.
+6. `FetchType.EAGER` включается глобально для починки N+1.
+7. `open-in-view=true` скрывает неверные transaction boundaries.
+8. Hibernate сам создаёт/удаляет схему вместо миграций.
+9. Integration test использует H2 при production PostgreSQL.
+10. Native SQL применяется там, где простой derived query выражает намерение яснее.
 
 ---
 
-## 4. Изоляция состояния между тестами
+## Итог
 
-### 4.1 Варианты
-
-| Способ | Как | Ограничение |
-|---|---|---|
-| `@Transactional` на тесте | Spring откатывает после теста | **не видно другим соединениям** → конкурентные тесты невозможны; не проверяет то, что происходит на коммите (deferred constraints, триггеры) |
-| `TRUNCATE` между тестами | `TRUNCATE t1, t2 RESTART IDENTITY CASCADE` | нужно перечислить таблицы (можно собрать из `information_schema`) |
-| Пересоздание схемы | `DROP SCHEMA public CASCADE` + Flyway | медленнее, зато полностью честно |
-| Схема на тестовый класс | `search_path` | сложнее, зато параллелизуемо |
-
-Для этой недели рабочий выбор — `TRUNCATE` через `@AfterEach`, потому что конкурентные тесты требуют настоящих коммитов.
-
-### 4.2 Фикстуры
-
-Данные готовит явный builder/фабрика, а не `import.sql` на 500 строк. Тест должен читаться как «дано: счёт с балансом 1000», а не «дано: файл где-то в ресурсах».
-
----
-
-## 5. Тестирование миграций и constraints
-
-### 5.1 Миграции
-
-Обязательный шаг CI (неделя 13): применить **все** миграции на пустой базе с нуля.
-
-```kotlin
-@Test
-fun `migrations apply from scratch`() {
-    val flyway = Flyway.configure().dataSource(url, user, pass).load()
-    flyway.clean()
-    val result = flyway.migrate()
-    assertThat(result.migrationsExecuted).isGreaterThan(0)
-}
-```
-
-Дополнительно полезно: применить миграции поверх дампа схемы предыдущего релиза — это ловит несовместимые изменения.
-
-### 5.2 Constraints
-
-Тест должен **нарушать** ограничение и ожидать конкретную ошибку:
-
-```kotlin
-@Test
-fun `duplicate idempotency key is rejected by unique constraint`() {
-    repo.insertKey("k-1", userId)
-    assertThatThrownBy { repo.insertKey("k-1", userId) }
-        .isInstanceOf(DuplicateKeyException::class.java)
-}
-
-@Test
-fun `negative balance is rejected by check constraint`() {
-    assertThatThrownBy { jdbc.update("UPDATE accounts SET balance_minor = -1 WHERE id = ?", accountId) }
-        .isInstanceOf(DataIntegrityViolationException::class.java)
-}
-
-@Test
-fun `ledger entry requires existing account`() { /* 23503 */ }
-```
-
-**Проверка теста:** удалите constraint из миграции — тест обязан упасть. Это единственный способ убедиться, что он проверяет базу, а не приложение.
-
-### 5.3 Планы запросов
-
-Для критичных запросов — тест, проверяющий отсутствие полного сканирования:
-
-```kotlin
-@Test
-fun `payment history uses index`() {
-    seedPayments(200_000)
-    jdbc.execute("ANALYZE payments")
-    val plan = jdbc.queryForList("EXPLAIN (ANALYZE, BUFFERS) $HISTORY_SQL", params)
-        .joinToString("\n") { it.values.first().toString() }
-    assertThat(plan).doesNotContain("Seq Scan on payments")
-}
-```
-
-Держите утверждение узким (отсутствие Seq Scan по конкретной таблице, `Heap Fetches: 0`), иначе тест сломается на смене версии PostgreSQL.
-
----
-
-## 6. Конкурентные тесты
-
-### 6.1 Детерминированность без sleep
-
-`Thread.sleep` даёт flaky-тесты: на быстрой машине один результат, на загруженном CI — другой. Используйте примитивы синхронизации.
-
-**Одновременный старт N операций:**
-
-```kotlin
-@Test
-fun `50 concurrent transfers preserve total balance`() {
-    val threads = 50
-    val pool = Executors.newFixedThreadPool(threads)
-    val start = CountDownLatch(1)
-    val done = CountDownLatch(threads)
-    val errors = ConcurrentLinkedQueue<Throwable>()
-
-    val totalBefore = totalMoney()
-
-    repeat(threads) {
-        pool.submit {
-            try {
-                start.await()
-                transferService.transfer(from = a, to = b, amount = 100)
-            } catch (e: InsufficientFunds) {
-                // легальный исход
-            } catch (e: Throwable) {
-                errors += e
-            } finally {
-                done.countDown()
-            }
-        }
-    }
-
-    start.countDown()
-    assertThat(done.await(30, TimeUnit.SECONDS)).isTrue()
-    pool.shutdown()
-
-    assertThat(errors).isEmpty()
-    assertThat(totalMoney()).isEqualTo(totalBefore)      // главный инвариант
-    assertThat(balanceOf(a)).isGreaterThanOrEqualTo(0)
-    assertThat(ledgerSum(a)).isEqualTo(balanceOf(a))
-}
-```
-
-Важно: `InsufficientFunds` — **легальный** результат при конкуренции, ошибкой не является. Тест проверяет инвариант, а не то, что все 50 переводов прошли.
-
-Помните про размер пула соединений: 50 потоков и пул на 10 означают ожидание — это нормально, но `connection-timeout` должен быть больше времени теста, иначе получите ложные падения.
-
-### 6.2 Строгий порядок шагов (lost update, deadlock)
-
-Для воспроизведения аномалии нужен точный порядок операций в двух транзакциях — здесь помогает `CyclicBarrier`:
-
-```kotlin
-val barrier = CyclicBarrier(2)
-
-// T1: BEGIN; UPDATE acc1; [barrier] UPDATE acc2; COMMIT
-// T2: BEGIN; UPDATE acc2; [barrier] UPDATE acc1; COMMIT   → deadlock
-```
-
-Тест на дедлок утверждает: одна из транзакций получила `DeadlockLoserDataAccessException`, а инвариант при этом не нарушен. После внедрения единого порядка блокировок (неделя 7) тот же тест должен показывать отсутствие дедлока — это регрессионная защита.
-
-### 6.3 Retry после serialization failure
-
-```kotlin
-@Test
-fun `serialization failure is retried and operation succeeds once`() {
-    // два параллельных Serializable-перевода по одному счёту
-    // ожидание: обе операции завершились, retry сработал,
-    //           итоговый баланс уменьшился ровно на 2 × amount
-    assertThat(retryCounter.count()).isGreaterThan(0)   // retry действительно происходил
-}
-```
-
-Проверять стоит и то, что retry **случился** (иначе тест не о том), и то, что результат корректен.
-
-### 6.4 Идемпотентность
-
-```kotlin
-@Test
-fun `parallel posts with same idempotency key create single transfer`() {
-    val key = UUID.randomUUID().toString()
-    val results = runParallel(10) { api.transfer(key, from, to, 100) }
-
-    assertThat(countTransfers(from, to)).isEqualTo(1)
-    assertThat(results.map { it.transferId }.distinct()).hasSize(1)
-}
-```
-
-Плюс отдельный тест «повтор после таймаута»: первый запрос завершился, ответ не дошёл, клиент повторил — сервер вернул тот же результат, второй операции нет.
-
-### 6.5 Борьба с flaky
-
-- никаких `sleep` и зависимостей от времени;
-- фиксированный `Clock` в бинах;
-- явные таймауты у `await` и `assertThat(latch.await(...)).isTrue()`;
-- независимость от порядка выполнения тестов;
-- при параллельном запуске тестов — изоляция по схемам или отключение параллелизма для конкурентных классов;
-- flaky-тест либо чинится, либо удаляется: «перезапустим CI» — это отказ от проверки.
-
----
-
-## 7. Invariant-based тестирование
-
-Вместо проверки конкретного результата проверяется **свойство**, которое должно выполняться всегда:
-
-1. **Сохранение денег.** `sum(balance_minor)` по всем счетам неизменна после любого числа переводов.
-2. **Неотрицательность.** Ни один баланс не отрицателен ни в какой момент.
-3. **Согласованность projection.** `accounts.balance_minor = sum(ledger_entries.amount_minor)` для каждого счёта.
-4. **Сбалансированность проводок.** `sum(amount_minor) = 0` по каждому `transfer_id`.
-5. **Идемпотентность.** Число операций с одним ключом равно 1.
-6. **Иммутабельность ledger.** Число проводок только растёт; никакая существующая не изменилась (проверяется хешем или счётчиком).
-
-Дальнейший шаг — property-based тесты (kotest property, jqwik): генерировать случайные последовательности операций и проверять инварианты после каждой. Это ловит сценарии, которые не приходят в голову.
-
----
-
-## 8. Smoke tests перед деплоем
-
-Минимальный набор, который должен пройти на развёрнутом окружении (неделя 13):
-
-- `/health` и `/actuator/health/readiness` отвечают;
-- миграции применены (`flyway_schema_history` содержит ожидаемую версию);
-- один чтения-endpoint возвращает данные;
-- один пишущий сценарий проходит на техническом аккаунте и откатывается/помечается;
-- версия приложения в ответе соответствует ожидаемой.
-
----
-
-## 9. Типичные ошибки недели
-
-1. H2 «для скорости».
-2. Мок репозитория там, где проверяется поведение базы.
-3. `@Transactional` на конкурентном тесте.
-4. `Thread.sleep` вместо барьеров.
-5. Тест конкурентности, который проверяет «не было исключений», а не инвариант.
-6. Контейнер поднимается на каждый тестовый класс.
-7. Версия PostgreSQL в тестах отличается от прода.
-8. Тест не падает при удалении constraint.
-9. Флаки перезапускаются вместо починки.
-10. Проверка `EXPLAIN` на 100 строках.
-11. Пул соединений меньше числа потоков теста без учёта таймаутов.
-
----
-
-## 10. Критерий готовности
-
-- Тесты падают при удалении constraint или блокировки и проходят после восстановления.
-- Нет зависимости от локально установленной базы — всё поднимается Testcontainers.
-- Есть параллельный тест перевода, проверяющий инвариант суммы.
-- Есть тест retry после serialization failure и тест идемпотентности.
-- Миграции применяются на пустой базе в CI.
-- Определён минимальный набор smoke tests перед деплоем.
-
-## 11. Официальные материалы
-
-- Testcontainers for Java — PostgreSQL Module, Singleton containers, Reuse.
-- Spring Boot Reference — Testing (`@SpringBootTest`, test slices, `@DynamicPropertySource`, `@ServiceConnection`).
-- JUnit 5 User Guide — Parallel execution, Timeouts.
-- PostgreSQL: Chapter 13 — Concurrency Control (для формулировки инвариантов).
-- Flyway — Test migrations.
+Вертикальный срез считается готовым не тогда, когда `POST` однажды вернул `201`, а когда его границы формализованы: DTO валидируется, service rule названа, relation закреплена FK, schema версионируется, ошибки стабильны, а позитивные и негативные сценарии выполняются на настоящем PostgreSQL.

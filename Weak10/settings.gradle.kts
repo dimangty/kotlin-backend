@@ -1,2 +1,1 @@
-rootProject.name = "week-10-testcontainers"
-
+rootProject.name = "week-10-course-catalog"

@@ -1,83 +1,151 @@
-# Неделя 10. Тестирование базы и конкурентности
+# Неделя 10. Course Catalog: JPA-связи, validation и error contract
 
-**Результат недели:** проверять реальные гарантии PostgreSQL, а не поведение моков.
+**Результат недели:** собрать полноценный вертикальный срез каталога курсов: преподаватель хранится отдельно, курс ссылается на него через внешний ключ, входные DTO валидируются на HTTP-границе, а ошибки имеют стабильный JSON-контракт.
 
 Теория недели: [THEORY-SHORT.md](THEORY-SHORT.md) (шпаргалка) и [THEORY-DETAILED.md](THEORY-DETAILED.md) (подробный разбор).
 
-Неделя отвечает на вопрос, который делает все предыдущие выводы проверяемыми: как превратить «я воспроизвёл lost update в двух psql-сессиях» в тест, который упадёт в CI, если защиту случайно уберут.
+Модуль переработан по примерам `course-catalog-service-9…11` из папки `test/`. Из примеров сохранены ключевые идеи — `Course`/`Instructor`, `ManyToOne`, фильтр `course_name`, Bean Validation, `ControllerAdvice`, unit- и integration-тесты. Устаревшие и небезопасные решения заменены современными: `jakarta.*`, DTO вместо выдачи entity, Flyway вместо `generate-ddl`, PostgreSQL 17 вместо смешения PostgreSQL и H2, структурированные ошибки вместо текста исключения.
 
-## Почему не H2 и не мок
+## Что строим
 
-| Что проверяем | Мок / H2 | Настоящий PostgreSQL |
-|---|---|---|
-| MVCC и видимость строк | не воспроизводится | воспроизводится |
-| Уровни изоляции, `40001` | нет | есть |
-| Row locks, deadlock, `SKIP LOCKED` | нет | есть |
-| Поведение planner | другое | то же, что в production |
-| Диалект SQL и constraints | частично | полностью |
+```text
+POST /v1/instructors
+         │
+         ▼
+   instructors (1) ◄──── (N) courses
+                              ▲
+                              │
+ POST/GET/PUT/DELETE /v1/courses
+```
 
-Тест на моках проверяет, что вы вызвали метод, который собирались вызвать. Тест на PostgreSQL проверяет, что деньги не удвоились. На финтех-проекте нужен второй.
+Курс не может существовать без преподавателя. Это правило дублируется в двух местах:
 
-## Теория и где она в проекте
+- сервис отклоняет неизвестный `instructorId` понятной ошибкой `404`;
+- PostgreSQL гарантирует `NOT NULL` и `FOREIGN KEY`, даже если запись пришла в обход HTTP API.
+
+## Теория и где она в коде
 
 | Тема | Где смотреть |
 |---|---|
-| Testcontainers как настоящая база | [PostgresInvariantTest.kt](src/test/kotlin/study/week10/PostgresInvariantTest.kt) - `PostgreSQLContainer("postgres:17-alpine")`, порт выбирается динамически |
-| Тест constraint, а не кода | `database rejects duplicate idempotency key`: проверяется, что база **отказала**, а не что сервис не вызвал insert |
-| Детерминированная конкуренция | `CountDownLatch` как барьер: 20 потоков стартуют одновременно, а не «как повезёт» |
-| Invariant-style проверка | из 20 параллельных списаний по 100 успешны ровно 10, итог - ровно 0, никогда не отрицательный |
-| Атомарный предикат вместо read-modify-write | `UPDATE ... WHERE id=1 AND balance>=100` - защита живёт в SQL, а не в Kotlin |
-| Гигиена теста | futures с timeout, executor закрывается в `finally` - зависший тест не должен вешать CI |
+| DTO не равен entity | [CourseApiModels.kt](src/main/kotlin/study/week10/CourseApiModels.kt) и [Course.kt](src/main/kotlin/study/week10/Course.kt) |
+| `ManyToOne` / `OneToMany` | [Course.kt](src/main/kotlin/study/week10/Course.kt) и [Instructor.kt](src/main/kotlin/study/week10/Instructor.kt) |
+| Владелец JPA-связи | `Course.instructor` содержит `@JoinColumn`; `Instructor.courses` использует `mappedBy` |
+| Validation на границе | `@Valid` в [CourseController.kt](src/main/kotlin/study/week10/CourseController.kt), constraints в `CourseRequest` |
+| Единый контракт ошибок | [ApiErrorHandler.kt](src/main/kotlin/study/week10/ApiErrorHandler.kt): `VALIDATION_FAILED`, `INSTRUCTOR_NOT_FOUND`, `COURSE_NOT_FOUND` |
+| Derived query | [CourseRepository.kt](src/main/kotlin/study/week10/CourseRepository.kt): `findAllByNameContainingIgnoreCaseOrderByNameAsc` |
+| Защита от N+1 | `@EntityGraph(attributePaths = ["instructor"])` загружает нужную связь для списка |
+| Схема как код | [V1__course_catalog.sql](src/main/resources/db/migration/V1__course_catalog.sql), Hibernate только проверяет её через `ddl-auto: validate` |
+| Реальная интеграция | [CourseCatalogIntegrationTest.kt](src/test/kotlin/study/week10/CourseCatalogIntegrationTest.kt) запускает Spring MVC + JPA + Flyway + PostgreSQL Testcontainers |
+| Изолированное бизнес-правило | [CourseServiceTest.kt](src/test/kotlin/study/week10/CourseServiceTest.kt) проверяет связь с преподавателем без Spring-контекста |
 
 ## Запуск
 
+Нужны JDK 17 и Docker.
+
 ```bash
-./gradlew test   # нужен работающий Docker; порт 5432 на машине не используется
+./gradlew test
 ```
 
-Testcontainers поднимает контейнер сам и публикует случайный порт, поэтому тесты не конфликтуют с `docker compose` других недель.
+Тесты сами поднимают PostgreSQL 17 на случайном порту. Для ручного запуска приложения:
 
-## Чеклист ревью теста
+```bash
+docker compose up -d
+./gradlew bootRun
+```
 
-- Тест действительно падает, если убрать защиту. Не проверено - значит, не тест.
-- Конкуренция начинается барьером, а не надеждой на случайный race.
-- Проверяется бизнес-инвариант, а не внутренний вызов мока.
-- Контейнер не зависит от локальной базы, фиксированного порта и порядка тестов.
-- Состояние сбрасывается между тестами (`@BeforeEach`), иначе тесты начинают зависеть друг от друга.
+Если порт `5438` занят:
+
+```bash
+PG_PORT=55438 docker compose up -d
+DB_URL=jdbc:postgresql://localhost:55438/courses ./gradlew bootRun
+```
+
+## Проверка API
+
+Создать преподавателя:
+
+```bash
+curl -i -H 'Content-Type: application/json' \
+  -d '{"name":"Dilip Sundarraj"}' \
+  http://localhost:8080/v1/instructors
+```
+
+Создать курс, подставив полученный `id`:
+
+```bash
+curl -i -H 'Content-Type: application/json' \
+  -d '{"name":"Kotlin Spring Boot","category":"Development","instructorId":1}' \
+  http://localhost:8080/v1/courses
+```
+
+Получить все курсы или отфильтровать по части имени:
+
+```bash
+curl -i http://localhost:8080/v1/courses
+curl -i 'http://localhost:8080/v1/courses?course_name=spring'
+```
+
+Проверить негативный сценарий:
+
+```bash
+curl -i -H 'Content-Type: application/json' \
+  -d '{"name":" ","category":"","instructorId":0}' \
+  http://localhost:8080/v1/courses
+```
+
+Ответ имеет стабильную форму:
+
+```json
+{
+  "code": "VALIDATION_FAILED",
+  "message": "Request is invalid",
+  "details": {
+    "category": "must not be blank",
+    "instructorId": "must be greater than 0",
+    "name": "must not be blank"
+  },
+  "requestId": "..."
+}
+```
 
 ## Задания
 
-1. **Mutation testing руками.** Для каждого существующего теста сломайте защиту и убедитесь, что тест краснеет:
-   - убрать `PRIMARY KEY` у `requests` - должен упасть тест идемпотентности;
-   - убрать `CHECK(balance >= 0)` и условие `AND balance >= 100` - должен упасть тест параллельного списания, а баланс уйти в минус.
-   Запишите, какой именно тест поймал каждую поломку. Это единственный способ узнать, что тесты вообще что-то проверяют.
-2. **Две проводки.** Добавить `ledger_entries` и тест: после N параллельных переводов сумма всех проводок равна нулю, а число проводок ровно `2N`.
-3. **Serialization failure и retry.** Тест на `SERIALIZABLE`: две транзакции, конфликт, `SQLSTATE 40001`, ограниченный retry всей бизнес-транзакции, успешный итог. Затем тест, что неретраибельная ошибка (`23505`) не повторяется. Классификация - в [docs/concurrency-track.md](../docs/concurrency-track.md).
-4. **Deadlock.** Тест, где два потока переводят A->B и B->A без общего порядка блокировок, ловит `40P01`, а затем тот же тест с `ORDER BY id FOR UPDATE` проходит без ошибок (сравните с `Weak7/locks-session-*.sql`).
-5. **Миграции на пустой базе.** Прогнать Flyway на чистом контейнере и проверить, что схема применилась полностью; затем прогнать второй раз и убедиться, что повтор ничего не сломал.
-6. **Скорость.** Переиспользовать один контейнер на весь класс (уже так) и на весь модуль, замерить разницу во времени прогона. Интеграционные тесты, которые идут 10 минут, перестают запускаться.
+1. **Получение одного курса.** Добавьте `GET /v1/courses/{id}` и тесты на `200`/`404`. Не возвращайте JPA-сущность напрямую.
+2. **Фильтр по преподавателю.** Поддержите `instructor_id` вместе с `course_name`. Решите, какие комбинации параметров допустимы, и закрепите контракт тестами.
+3. **Удаление преподавателя.** Реализуйте осознанную политику: запретить удаление с курсами (`409`) или каскадно удалить их. Сначала сформулируйте бизнес-правило, затем измените FK и код.
+4. **Пагинация.** Замените неограниченный список на `Pageable`, введите максимальный `size`, добавьте стабильную сортировку.
+5. **Проверка N+1.** Уберите `@EntityGraph`, включите статистику Hibernate и посчитайте запросы для списка из 20 курсов; верните защиту и сравните.
+6. **Optimistic locking.** Добавьте `@Version` к курсу, передавайте версию в update DTO и возвращайте `409` для устаревшего изменения.
 
 ## Что разобрать с ментором
 
-- Ревью тестов на ложную уверенность: какой из них пройдёт, даже если удалить защиту.
-- Минимальный набор smoke-тестов перед деплоем.
-- Где граница между unit-, slice- и integration-тестом в этом проекте и почему её стоит держать.
+- Почему `Course` владеет связью, хотя со стороны бизнеса преподаватель «имеет курсы».
+- Где заканчивается HTTP-validation и начинаются бизнес-правила сервиса.
+- Почему универсальный `catch (Exception)` с `ex.message` создаёт нестабильный контракт и может раскрыть внутренние детали.
+- Когда derived query читается хорошо, а когда лучше явный JPQL/SQL.
+- Зачем одновременно нужны service check и внешний ключ.
 
 ## Критерий готовности
 
-- Тесты падают при удалении constraint или блокировки и проходят после восстановления - проверено вручную.
-- Нет зависимости от локально установленной базы и фиксированного порта.
-- Конкурентный тест детерминирован: он не «иногда ловит» гонку, а создаёт её каждым запуском.
+- `./gradlew test` проходит на чистом PostgreSQL Testcontainers.
+- Нельзя создать курс с пустыми полями или неизвестным преподавателем.
+- Все ответы API используют DTO и не сериализуют ленивые JPA-связи.
+- Фильтр нечувствителен к регистру и возвращает стабильный порядок.
+- Flyway создаёт схему, Hibernate её только валидирует.
+- Ошибки validation/not-found различимы по HTTP-статусу и полю `code`.
 
 ## Контрольные вопросы
 
-- Почему H2 не заменяет PostgreSQL в интеграционных тестах?
-- Зачем нужен `CountDownLatch`, если потоков и так двадцать?
-- Почему из 20 параллельных списаний по 100 при балансе 1000 успешны ровно 10 - и что должно было бы произойти при read-modify-write в коде?
-- Чем тест constraint отличается от теста сервиса, который этот constraint соблюдает?
+- Какая сторона связи хранит `instructor_id` и почему именно она является owning side?
+- Чем `@Valid` отличается от проверки существования `instructorId`?
+- Почему `open-in-view=false` быстрее обнаруживает неверные transaction boundaries?
+- Как `@EntityGraph` связан с проблемой N+1?
+- Почему H2 не является эквивалентом PostgreSQL даже для «простого» JPA-теста?
 
 ## Материалы
 
-- [Testcontainers for Java: PostgreSQL Module](https://java.testcontainers.org/modules/databases/postgres/)
-- [Spring Boot: Testing](https://docs.spring.io/spring-boot/reference/testing/index.html)
-- [PostgreSQL: Transaction Isolation](https://www.postgresql.org/docs/17/transaction-iso.html)
+- [Spring Data JPA Reference](https://docs.spring.io/spring-data/jpa/reference/)
+- [Spring Framework: Validation](https://docs.spring.io/spring-framework/reference/core/validation/beanvalidation.html)
+- [Hibernate ORM: Associations](https://docs.jboss.org/hibernate/orm/current/userguide/html_single/Hibernate_User_Guide.html#associations)
+- [Flyway Documentation](https://documentation.red-gate.com/flyway)
+- [Testcontainers PostgreSQL Module](https://java.testcontainers.org/modules/databases/postgres/)

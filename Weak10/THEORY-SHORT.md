@@ -1,93 +1,90 @@
 # Неделя 10 — краткая теория
 
-**Тема:** тестирование базы и конкурентности.
-**Результат:** проверять реальные гарантии PostgreSQL, а не поведение моков.
+**Тема:** JPA-связи, validation, error contract и тестирование вертикального среза.
+
+**Результат:** курс создаётся только для существующего преподавателя, API не выдаёт entity наружу, ошибки предсказуемы, а поведение подтверждено на настоящем PostgreSQL.
 
 ---
 
-## 1. Пирамида тестов backend-сервиса
+## 1. Путь запроса
 
-| Уровень | Что проверяет | Инструмент | Скорость |
-|---|---|---|---|
-| Unit | чистая логика домена | JUnit 5, без Spring | мс |
-| Slice | один слой | `@WebMvcTest`, `@DataJpaTest` | сотни мс |
-| Integration | приложение + настоящая БД | `@SpringBootTest` + Testcontainers | секунды |
-| E2E | вся система через HTTP | `@SpringBootTest(webEnvironment=RANDOM_PORT)` | секунды-минуты |
+```text
+HTTP JSON
+  → Controller + @Valid
+  → Service + business rule
+  → Repository + transaction
+  → PostgreSQL constraints
+  → Response DTO / ApiError
+```
 
-Смещение относительно клиентской разработки: **вес интеграционных тестов здесь выше**, потому что главные гарантии дают constraints, транзакции и блокировки, а не код.
+Каждый слой отвечает за свой класс ошибок:
 
-## 2. Почему не H2
+| Слой | Проверяет | Пример |
+|---|---|---|
+| HTTP / DTO | форма запроса | пустое `name`, `instructorId <= 0` |
+| Service | бизнес-смысл | преподавателя с таким id нет |
+| PostgreSQL | целостность при любом пути записи | `NOT NULL`, `CHECK`, `FOREIGN KEY` |
 
-H2 в PostgreSQL-режиме не воспроизводит: MVCC и уровни изоляции, `FOR UPDATE SKIP LOCKED`, поведение дедлоков, `EXPLAIN`, `jsonb`, партиальные/expression индексы, точную семантику `ON CONFLICT`, типы (`timestamptz`, `inet`), `SQLSTATE`.
+## 2. DTO и entity — разные модели
 
-Тест на H2 может пройти, а на PostgreSQL упасть — и наоборот. Для проверки корректности данных это бесполезный тест.
+JPA-сущность описывает хранение, ленивые связи и жизненный цикл persistence context. DTO описывает публичный HTTP-контракт.
 
-## 3. Testcontainers
+Нельзя возвращать entity напрямую: легко получить рекурсию `Instructor → courses → instructor`, `LazyInitializationException`, лишние поля или случайное изменение JSON после рефакторинга базы.
+
+## 3. Владелец связи
 
 ```kotlin
-companion object {
-    @Container @JvmStatic
-    val postgres = PostgreSQLContainer("postgres:17-alpine")
+@ManyToOne(fetch = FetchType.LAZY)
+@JoinColumn(name = "instructor_id")
+var instructor: Instructor
+```
 
-    @DynamicPropertySource @JvmStatic
-    fun props(r: DynamicPropertyRegistry) {
-        r.add("spring.datasource.url", postgres::getJdbcUrl)
-        r.add("spring.datasource.username", postgres::getUsername)
-        r.add("spring.datasource.password", postgres::getPassword)
-    }
+`Course` — owning side, потому что таблица `courses` хранит внешний ключ. `Instructor.courses` — обратная сторона с `mappedBy = "instructor"`.
+
+## 4. Validation не заменяет бизнес-правила
+
+```kotlin
+data class CourseRequest(
+    @field:NotBlank val name: String,
+    @field:Positive val instructorId: Long,
+)
+```
+
+`@Positive` доказывает только то, что число больше нуля. Существование преподавателя проверяет сервис. Внешний ключ остаётся последней защитой базы.
+
+## 5. Стабильный контракт ошибок
+
+```json
+{
+  "code": "INSTRUCTOR_NOT_FOUND",
+  "message": "Instructor 42 not found",
+  "details": {},
+  "requestId": "..."
 }
 ```
 
-- **Singleton-контейнер** (один на весь прогон) вместо `@Testcontainers` на каждый класс — экономит минуты.
-- **Reuse** (`testcontainers.reuse.enable=true`) — для локальной разработки.
-- Версия образа фиксируется той же, что в проде.
+- `400` — запрос невозможно принять или провалена Bean Validation;
+- `404` — запрошенный курс/преподаватель не найден;
+- `409` — конфликт состояния, если он появится в заданиях;
+- `500` — внутренняя ошибка без stack trace и деталей драйвера в ответе.
 
-## 4. Изоляция тестов
+## 6. Derived query и N+1
 
-| Способ | Плюс | Минус |
-|---|---|---|
-| `@Transactional` + rollback | быстро | **не работает** для тестов конкурентности и не проверяет коммит |
-| `TRUNCATE ... RESTART IDENTITY CASCADE` между тестами | честно | чуть медленнее |
-| Отдельная схема/база на тест | максимальная изоляция | дороже |
+`findAllByNameContainingIgnoreCaseOrderByNameAsc` даёт читаемый запрос для простого фильтра. `@EntityGraph("instructor")` загружает преподавателя вместе с курсами списка и не создаёт отдельный запрос на каждую строку.
 
-Для конкурентных тестов подходит только вариант с реальными коммитами.
+## 7. Схема и тесты
 
-## 5. Что тестировать в базе
-
-- **Миграции**: Flyway прогоняется на пустой базе с нуля в CI.
-- **Constraints**: тест, который **нарушает** `UNIQUE`/`CHECK`/`FK` и ждёт исключение. Удалите constraint — тест обязан упасть.
-- **Идемпотентность**: два параллельных `POST` с одним ключом → одна операция.
-- **Планы**: для критичных запросов — `EXPLAIN` без `Seq Scan` по большой таблице.
-
-## 6. Конкурентные тесты
-
-Детерминированность обеспечивается синхронизацией, а не `sleep`:
-
-```kotlin
-val start = CountDownLatch(1)
-val done = CountDownLatch(N)
-repeat(N) { pool.submit { start.await(); transfer(); done.countDown() } }
-start.countDown()          // все стартуют одновременно
-done.await(10, SECONDS)
-```
-
-Для воспроизведения дедлока нужен строгий порядок шагов — `CyclicBarrier`/`Phaser`, а не таймеры.
-
-## 7. Invariant-based тесты
-
-Проверяется не «вернулся 200», а свойство системы:
-
-1. Сумма денег в системе не изменилась после N переводов.
-2. Ни один баланс не отрицателен.
-3. `accounts.balance_minor == sum(ledger_entries.amount_minor)`.
-4. Число операций с одним idempotency key равно единице.
-5. Сумма проводок по одному `transfer_id` равна нулю.
+- Flyway владеет DDL; `ddl-auto: validate` ловит расхождение entity и схемы.
+- Unit-тест сервиса быстро проверяет бизнес-ветвления.
+- Integration-тест проверяет Spring MVC, сериализацию, validation, транзакции, mapping и PostgreSQL одной цепочкой.
+- H2 не проверяет точный диалект, FK/DDL и поведение PostgreSQL.
 
 ---
 
 ## Контрольные вопросы
 
-1. **Почему H2 не заменяет PostgreSQL?** Он не воспроизводит MVCC, блокировки, `SKIP LOCKED`, дедлоки, типы и коды ошибок — то есть ровно то, что вы проверяете.
-2. **Почему `@Transactional` в тесте не годится для конкурентности?** Изменения не коммитятся и не видны другим потокам/соединениям, а сам тест держит одну транзакцию.
-3. **Как сделать конкурентный тест детерминированным?** Синхронизировать потоки барьерами/защёлками, а не `Thread.sleep`, и проверять инвариант, а не порядок.
-4. **Как проверить, что тест действительно что-то проверяет?** Удалить constraint или блокировку — тест обязан упасть; вернуть — пройти.
+1. Где физически хранится связь Course–Instructor?
+2. Почему одного `@Positive instructorId` недостаточно?
+3. Зачем DTO содержит `instructorId`, но не объект `Instructor`?
+4. Что произойдёт без `@EntityGraph` при выдаче большого списка?
+5. Какой тест должен поймать удаление внешнего ключа?

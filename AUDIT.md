@@ -24,7 +24,7 @@
 | 7 | Ordered locks, idempotency UNIQUE, ledger, duplicate payload check, 50 parallel transfers; SQL-лаборатория lock wait/deadlock/SKIP LOCKED и разбор blocker через pg_locks | bounded retry 40P01/40001 в сервисе и worker очереди на SKIP LOCKED |
 | 8 | Flyway + Hibernate validate + JPA dirty checking + JDBC projection на Testcontainers | controller, N+1 experiment, expand-contract migration |
 | 9 | Bcrypt, TTL opaque tokens, refresh rotation, 401/403 ownership tests | PostgreSQL persistence, hashed refresh tokens, logout/revoke-all, audit |
-| 10 | Реальный PostgreSQL, UNIQUE и deterministic parallel debit tests | Flyway-on-empty, FK/CHECK mutation tests и serialization retry test |
+| 10 | Course–Instructor vertical slice: JPA relation, validation/error contract, Flyway и PostgreSQL integration tests | GET by id, pagination, N+1 query-count test и optimistic locking |
 | 11 | Per-key concurrency, payload binding, cancellation/reconciliation, timeout вне DB transaction | classified retry/backoff и PostgreSQL outbox/state machine |
 | 12 | Request/operation IDs, safe MDC, bounded metrics tags, Prometheus, HTTP/metrics tests | Hikari/transaction metrics и pg_stat_statements incident lab |
 | 13 | CI, wrapper-based multi-stage image, small Docker context, non-root/read-only/readiness | PostgreSQL migration job, backup/restore и rollback rehearsal |
@@ -51,7 +51,7 @@
 - Исправлены несовместимости Spring Framework 7/Spring Security 7: новый package `AutoConfigureMockMvc`, JSpecify nullability JDBC/password APIs и Java setter `DefaultTransactionDefinition.setName`.
 - `Weak14` и `Weak15` переведены с Ktor 3.1.2 на актуальный maintenance-релиз 3.5.1.
 - Все Gradle-проекты используют Kotlin 2.3.21; Spring-модули включают рекомендованный `-Xannotation-default-target=param-property`.
-- `Weak10` и `Weak11` оставлены framework-neutral по назначению лабораторий; обновлены только Kotlin/JUnit toolchains.
+- `Weak11` оставлен framework-neutral по назначению лаборатории; `Weak10` позднее перестроен как Spring Boot Course Catalog по приложенным учебным примерам.
 
 ## Доработка 23 июля 2026
 
